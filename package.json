@@ -5,13 +5,22 @@
   "repository": "https://github.com/CodeTease/cliedit",
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
-    "demo": "npm run build && cross-env NODE_ENV=development node dist/index.js",
+    "demo": "npm run build && cross-env NODE_ENV=development node dist/demo.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

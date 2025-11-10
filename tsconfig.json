@@ -12,5 +12,5 @@
     "declaration": true // Option: To generate .d.ts files when publishing
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "src/demo.ts"]
 }
