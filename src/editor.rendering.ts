@@ -1,0 +1,179 @@
+// src/editor.rendering.ts
+
+import { CliEditor } from './editor.js';
+import { ANSI } from './constants.js';
+
+/**
+ * Core methods for rendering the document content, status bar, and cursor.
+ */
+
+/**
+ * Recalculates the entire visual layout of the document based on screen width (line wrapping).
+ */
+function recalculateVisualRows(this: CliEditor): void {
+    this.visualRows = [];
+    // Calculate content width excluding gutter
+    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+
+    for (let y = 0; y < this.lines.length; y++) {
+      const line = this.lines[y];
+      if (line.length === 0) {
+        // Handle empty line case
+        this.visualRows.push({ logicalY: y, logicalXStart: 0, content: '' });
+      } else {
+        let x = 0;
+        // Chunk the line content based on contentWidth
+        while (x < line.length) {
+          const chunk = line.substring(x, x + contentWidth);
+          this.visualRows.push({ logicalY: y, logicalXStart: x, content: chunk });
+          x += contentWidth;
+        }
+      }
+    }
+}
+
+/**
+ * The main rendering loop.
+ */
+function render(this: CliEditor): void {
+    this.adjustCursorPosition();
+    this.scroll();
+
+    let buffer = ANSI.MOVE_CURSOR_TOP_LEFT;
+    
+    const currentVisualRowIndex = this.findCurrentVisualRowIndex();
+    const cursorVisualRow = this.visualRows[currentVisualRowIndex];
+    const cursorVisualX = cursorVisualRow ? (this.cursorX - cursorVisualRow.logicalXStart) : 0;
+    
+    // Determine where the physical cursor should be placed
+    const displayX = cursorVisualX + this.gutterWidth;
+    const displayY = this.screenStartRow + (currentVisualRowIndex - this.rowOffset); 
+    
+    const selectionRange = this.getNormalizedSelection();
+
+    // Draw visual rows
+    for (let y = 0; y < this.screenRows; y++) {
+      const visualRowIndex = y + this.rowOffset;
+      // Move to start of the row
+      buffer += `\x1b[${this.screenStartRow + y};1H`; 
+      
+      if (visualRowIndex >= this.visualRows.length) {
+        // Draw Tilde for lines past file end
+        buffer += `~ ${ANSI.CLEAR_LINE}`;
+      } else {
+        const row = this.visualRows[visualRowIndex];
+        
+        // 1. Draw Gutter (Line Number)
+        const lineNumber = (row.logicalXStart === 0) 
+          ? `${row.logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
+          : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
+        buffer += lineNumber;
+
+        let lineContent = row.content;
+        
+        // 2. Draw Content (Character by Character for selection/cursor)
+        for (let i = 0; i < lineContent.length; i++) {
+            const char = lineContent[i];
+            const logicalX = row.logicalXStart + i;
+            const logicalY = row.logicalY;
+            
+            const isCursorPosition = (visualRowIndex === currentVisualRowIndex && i === cursorVisualX);
+            const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
+
+            if (isSelected) {
+                buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+            } else if (isCursorPosition) {
+                 // Cursor is a single inverted character if not already covered by selection
+                 buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+            } else {
+                buffer += char;
+            }
+        }
+        
+        // 3. Handle Cursor at the absolute end of the line (drawing an inverted space)
+        const isCursorAtEndOfVisualLine = (visualRowIndex === currentVisualRowIndex && cursorVisualX === lineContent.length);
+        
+        if (isCursorAtEndOfVisualLine) {
+            // If the cursor is at the end of the line/chunk, draw the inverted space
+            buffer += ANSI.INVERT_COLORS + ' ' + ANSI.RESET_COLORS;
+        }
+
+        buffer += `${ANSI.CLEAR_LINE}`;
+      }
+    }
+
+    // Draw status bar
+    buffer += `\x1b[${this.screenRows + this.screenStartRow};1H`;
+    buffer += this.renderStatusBar();
+    
+    // Set physical cursor position (ensure cursor is visible on screen)
+    if (displayY >= this.screenStartRow && displayY < this.screenRows + this.screenStartRow) {
+         buffer += `\x1b[${displayY};${displayX + 1}H`;
+    }
+
+    process.stdout.write(buffer);
+}
+
+/**
+ * Sets the status message and handles the timeout for custom messages.
+ */
+function setStatusMessage(this: CliEditor, message: string, timeoutMs: number = 3000): void {
+    this.statusMessage = message;
+    this.isMessageCustom = message !== this.DEFAULT_STATUS;
+    if (this.statusTimeout) {
+      clearTimeout(this.statusTimeout);
+      this.statusTimeout = null;
+    }
+    if (message !== this.DEFAULT_STATUS && timeoutMs > 0) {
+      this.statusTimeout = setTimeout(() => {
+        this.statusMessage = this.DEFAULT_STATUS;
+        this.isMessageCustom = false;
+        this.statusTimeout = null;
+        if (!this.isCleanedUp) this.renderStatusBar();
+      }, timeoutMs);
+    }
+    if (!this.isCleanedUp) this.renderStatusBar();
+}
+
+/**
+ * Generates the status bar content (bottom two lines).
+ */
+function renderStatusBar(this: CliEditor): string {
+    let status = '';
+    const contentWidth = this.screenCols;
+    
+    // --- Line 1: Mode, File Status, Position ---
+    if (this.mode === 'search') {
+      status = `SEARCH: ${this.searchQuery}`;
+    } else {
+      const visualRowIndex = this.findCurrentVisualRowIndex();
+      const visualRow = this.visualRows[visualRowIndex];
+      const visualX = visualRow ? (this.cursorX - visualRow.logicalXStart) : 0;
+      
+      const fileStatus = this.isDirty ? `* ${this.filepath}` : this.filepath;
+      const pos = `Ln ${this.cursorY + 1}, Col ${this.cursorX + 1} (View: ${visualRowIndex + 1},${visualX + 1})`;
+      
+      const statusLeft = `[${fileStatus}]`.padEnd(Math.floor(contentWidth * 0.5));
+      const statusRight = pos.padStart(Math.floor(contentWidth * 0.5));
+
+      status = statusLeft + statusRight;
+    }
+    
+    status = status.padEnd(contentWidth);
+    let buffer = `${ANSI.INVERT_COLORS}${status}${ANSI.RESET_COLORS}`;
+    
+    // --- Line 2: Message/Help line ---
+    buffer += `\x1b[${this.screenRows + this.screenStartRow + 1};1H`; 
+    
+    const message = this.statusMessage.padEnd(contentWidth);
+    buffer += `${message}${ANSI.CLEAR_LINE}`;
+    
+    return buffer;
+}
+
+export const renderingMethods = {
+    recalculateVisualRows,
+    render,
+    setStatusMessage,
+    renderStatusBar,
+};
