@@ -1,6 +1,6 @@
 {
   "name": "cliedit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A lightweight, raw-mode terminal editor utility for Node.js CLI applications, with line wrapping and undo/redo support.",
   "repository": "https://github.com/CodeTease/cliedit",
   "type": "module",
@@ -39,6 +39,5 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "keypress": "^0.2.1"
   }
 }

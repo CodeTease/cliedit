@@ -1,0 +1,287 @@
+// src/vendor/keypress.ts
+// Đây là phiên bản "vendored" của thư viện 'keypress' (0.2.1)
+// được chuyển đổi sang TypeScript và loại bỏ hỗ trợ chuột
+// để tích hợp trực tiếp vào cliedit.
+
+import { EventEmitter } from 'events';
+import { StringDecoder } from 'string_decoder';
+
+/**
+ * Định nghĩa giao diện cho một sự kiện keypress.
+ * Được điều chỉnh từ file editor.ts.
+ */
+export interface KeypressEvent {
+  name?: string;
+  ctrl: boolean;
+  meta: boolean;
+  shift: boolean;
+  sequence: string;
+  code?: string;
+}
+
+/**
+ * Hàm polyfill cho `EventEmitter.listenerCount()`, để tương thích ngược.
+ */
+let listenerCount = EventEmitter.listenerCount;
+if (!listenerCount) {
+  listenerCount = function (emitter: EventEmitter, event: string | symbol): number {
+    return emitter.listeners(event).length;
+  };
+}
+
+/**
+ * Regexes dùng để phân tích escape code của ansi
+ */
+const metaKeyCodeRe = /^(?:\x1b)([a-zA-Z0-9])$/;
+const functionKeyCodeRe =
+  /^(?:\x1b+)(O|N|\[|\[\[)(?:(\d+)(?:;(\d+))?([~^$])|(?:1;)?(\d+)?([a-zA-Z]))/;
+
+/**
+ * Hàm chính, chấp nhận một Readable Stream và làm cho nó
+ * phát ra sự kiện "keypress".
+ */
+export default function keypress(stream: NodeJS.ReadStream): void {
+  if (isEmittingKeypress(stream)) return;
+
+  // Gắn decoder vào stream để theo dõi
+  (stream as any)._keypressDecoder = new StringDecoder('utf8');
+
+  function onData(b: Buffer): void {
+    if (listenerCount(stream, 'keypress') > 0) {
+      const r = (stream as any)._keypressDecoder.write(b);
+      if (r) emitKey(stream, r);
+    } else {
+      // Không ai đang nghe, gỡ bỏ listener
+      stream.removeListener('data', onData);
+      stream.on('newListener', onNewListener);
+    }
+  }
+
+  function onNewListener(event: string | symbol): void {
+    if (event === 'keypress') {
+      stream.on('data', onData);
+      stream.removeListener('newListener', onNewListener);
+    }
+  }
+
+  if (listenerCount(stream, 'keypress') > 0) {
+    stream.on('data', onData);
+  } else {
+    stream.on('newListener', onNewListener);
+  }
+}
+
+/**
+ * Kiểm tra xem stream đã phát ra sự kiện "keypress" hay chưa.
+ */
+function isEmittingKeypress(stream: NodeJS.ReadStream): boolean {
+  let rtn = !!(stream as any)._keypressDecoder;
+  if (!rtn) {
+    // XXX: Đối với các phiên bản node cũ, chúng ta muốn xóa các
+    // listener "data" và "newListener" hiện có vì chúng sẽ không
+    // bao gồm các phần mở rộng của module này (như "mousepress" đã bị loại bỏ).
+    stream.listeners('data').slice(0).forEach(function (l) {
+      if (l.name === 'onData' && /emitKey/.test(l.toString())) {
+        // FIX TS2769: Ép kiểu 'l' thành kiểu listener hợp lệ
+        stream.removeListener('data', l as (...args: any[]) => void);
+      }
+    });
+    stream.listeners('newListener').slice(0).forEach(function (l) {
+      if (l.name === 'onNewListener' && /keypress/.test(l.toString())) {
+        // FIX TS2769: Ép kiểu 'l' thành kiểu listener hợp lệ
+        stream.removeListener('newListener', l as (...args: any[]) => void);
+      }
+    });
+  }
+  return rtn;
+}
+
+/**
+ * Phần code bên dưới được lấy từ module `readline.js` của node-core
+ * và đã được chuyển đổi sang TypeScript.
+ */
+
+function emitKey(stream: NodeJS.ReadStream, s: string): void {
+  let ch: string | undefined;
+  const key: KeypressEvent = {
+    name: undefined,
+    ctrl: false,
+    meta: false,
+    shift: false,
+    sequence: s,
+  };
+  let parts: RegExpExecArray | null;
+
+  // Cảnh báo: Block `Buffer.isBuffer(s)` đã bị loại bỏ.
+  // Lý do: `onData` luôn gọi `emitKey` với một string (kết quả từ StringDecoder).
+  // Block đệ quy (paste) cũng gọi với string.
+  // Vì vậy, `s` luôn là string.
+
+  if (s === '\r') {
+    // carriage return
+    key.name = 'return';
+  } else if (s === '\n') {
+    // enter, đáng lẽ phải là linefeed
+    key.name = 'enter';
+  } else if (s === '\t') {
+    // tab
+    key.name = 'tab';
+  } else if (
+    s === '\b' ||
+    s === '\x7f' ||
+    s === '\x1b\x7f' ||
+    s === '\x1b\b'
+  ) {
+    // backspace hoặc ctrl+h
+    key.name = 'backspace';
+    key.meta = s.charAt(0) === '\x1b';
+  } else if (s === '\x1b' || s === '\x1b\x1b') {
+    // escape key
+    key.name = 'escape';
+    key.meta = s.length === 2;
+  } else if (s === ' ' || s === '\x1b ') {
+    key.name = 'space';
+    key.meta = s.length === 2;
+  } else if (s <= '\x1a') {
+    // ctrl+letter
+    key.name = String.fromCharCode(s.charCodeAt(0) + 'a'.charCodeAt(0) - 1);
+    key.ctrl = true;
+  } else if (s.length === 1 && s >= 'a' && s <= 'z') {
+    // lowercase letter
+    key.name = s;
+  } else if (s.length === 1 && s >= 'A' && s <= 'Z') {
+    // shift+letter
+    key.name = s.toLowerCase();
+    key.shift = true;
+  } else if ((parts = metaKeyCodeRe.exec(s))) {
+    // meta+character key
+    key.name = parts[1].toLowerCase();
+    key.meta = true;
+    key.shift = /^[A-Z]$/.test(parts[1]);
+  } else if ((parts = functionKeyCodeRe.exec(s))) {
+    // ansi escape sequence
+
+    // Lắp ráp lại key code, bỏ qua \x1b đứng đầu,
+    // bitflag của phím bổ trợ và bất kỳ chuỗi "1;" vô nghĩa nào
+    const code =
+      (parts[1] || '') +
+      (parts[2] || '') +
+      (parts[4] || '') +
+      (parts[6] || '');
+      
+    // FIX TS2362: Chuyển đổi (parts[...]) sang number bằng parseInt
+    const modifier = parseInt(parts[3] || parts[5] || '1', 10) - 1;
+
+    // Phân tích phím bổ trợ
+    key.ctrl = !!(modifier & 4);
+    key.meta = !!(modifier & 10);
+    key.shift = !!(modifier & 1);
+    key.code = code;
+
+    // Phân tích chính phím đó
+    switch (code) {
+      /* xterm/gnome ESC O letter */
+      case 'OP': key.name = 'f1'; break;
+      case 'OQ': key.name = 'f2'; break;
+      case 'OR': key.name = 'f3'; break;
+      case 'OS': key.name = 'f4'; break;
+      /* xterm/rxvt ESC [ number ~ */
+      case '[11~': key.name = 'f1'; break;
+      case '[12~': key.name = 'f2'; break;
+      case '[13~': key.name = 'f3'; break;
+      case '[14~': key.name = 'f4'; break;
+      /* from Cygwin and used in libuv */
+      case '[[A': key.name = 'f1'; break;
+      case '[[B': key.name = 'f2'; break;
+      case '[[C': key.name = 'f3'; break;
+      case '[[D': key.name = 'f4'; break;
+      case '[[E': key.name = 'f5'; break;
+      /* common */
+      case '[15~': key.name = 'f5'; break;
+      case '[17~': key.name = 'f6'; break;
+      case '[18~': key.name = 'f7'; break;
+      case '[19~': key.name = 'f8'; break;
+      case '[20~': key.name = 'f9'; break;
+      case '[21~': key.name = 'f10'; break;
+      case '[23~': key.name = 'f11'; break;
+      case '[24~': key.name = 'f12'; break;
+      /* xterm ESC [ letter */
+      case '[A': key.name = 'up'; break;
+      case '[B': key.name = 'down'; break;
+      case '[C': key.name = 'right'; break;
+      case '[D': key.name = 'left'; break;
+      case '[E': key.name = 'clear'; break;
+      case '[F': key.name = 'end'; break;
+      case '[H': key.name = 'home'; break;
+      /* xterm/gnome ESC O letter */
+      case 'OA': key.name = 'up'; break;
+      case 'OB': key.name = 'down'; break;
+      case 'OC': key.name = 'right'; break;
+      case 'OD': key.name = 'left'; break;
+      case 'OE': key.name = 'clear'; break;
+      case 'OF': key.name = 'end'; break;
+      case 'OH': key.name = 'home'; break;
+      /* xterm/rxvt ESC [ number ~ */
+      case '[1~': key.name = 'home'; break;
+      case '[2~': key.name = 'insert'; break;
+      case '[3~': key.name = 'delete'; break;
+      case '[4~': key.name = 'end'; break;
+      case '[5~': key.name = 'pageup'; break;
+      case '[6~': key.name = 'pagedown'; break;
+      /* putty */
+      case '[[5~': key.name = 'pageup'; break;
+      case '[[6~': key.name = 'pagedown'; break;
+      /* rxvt */
+      case '[7~': key.name = 'home'; break;
+      case '[8~': key.name = 'end'; break;
+      /* rxvt keys with modifiers */
+      case '[a': key.name = 'up'; key.shift = true; break;
+      case '[b': key.name = 'down'; key.shift = true; break;
+      case '[c': key.name = 'right'; key.shift = true; break;
+      case '[d': key.name = 'left'; key.shift = true; break;
+      case '[e': key.name = 'clear'; key.shift = true; break;
+      case '[2$': key.name = 'insert'; key.shift = true; break;
+      case '[3$': key.name = 'delete'; key.shift = true; break;
+      case '[5$': key.name = 'pageup'; key.shift = true; break;
+      case '[6$': key.name = 'pagedown'; key.shift = true; break;
+      case '[7$': key.name = 'home'; key.shift = true; break;
+      case '[8$': key.name = 'end'; key.shift = true; break;
+      case 'Oa': key.name = 'up'; key.ctrl = true; break;
+      case 'Ob': key.name = 'down'; key.ctrl = true; break;
+      case 'Oc': key.name = 'right'; key.ctrl = true; break;
+      case 'Od': key.name = 'left'; key.ctrl = true; break;
+      case 'Oe': key.name = 'clear'; key.ctrl = true; break;
+      case '[2^': key.name = 'insert'; key.ctrl = true; break;
+      case '[3^': key.name = 'delete'; key.ctrl = true; break;
+      case '[5^': key.name = 'pageup'; key.ctrl = true; break;
+      case '[6^': key.name = 'pagedown'; key.ctrl = true; break;
+      case '[7^': key.name = 'home'; key.ctrl = true; break;
+      case '[8^': key.name = 'end'; key.ctrl = true; break;
+      /* misc. */
+      case '[Z': key.name = 'tab'; key.shift = true; break;
+      default: key.name = 'undefined'; break;
+    }
+  } else if (s.length > 1 && s[0] !== '\x1b') {
+    // Nhận được một chuỗi ký tự dài hơn một.
+    // Có thể là paste, vì nó không phải là control sequence.
+    for (const c of s) {
+      emitKey(stream, c);
+    }
+    return;
+  }
+
+  // XXX: code phân tích "mouse" đã bị XÓA theo yêu cầu.
+
+  // Không phát ra key nếu không tìm thấy tên
+  if (key.name === undefined) {
+    return; // key = undefined;
+  }
+
+  if (s.length === 1) {
+    ch = s;
+  }
+
+  if (key || ch) {
+    stream.emit('keypress', ch, key);
+  }
+}

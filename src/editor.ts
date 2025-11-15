@@ -1,22 +1,16 @@
 // src/editor.ts
 import { promises as fs } from 'fs';
-import keypress from 'keypress'; 
+// Cập nhật 1: Import từ ./vendor/keypress.js
+import keypress from './vendor/keypress.js'; 
 import { ANSI, KEYS } from './constants.js';
 import { HistoryManager } from './history.js';
 import { DocumentState, VisualRow, EditorMode } from './types.js';
 
 // --- LOCAL TS DECLARATION (FIX TS7016/TS2306) ---
-// Declaring the keypress module here solves implicit any type errors
-declare module 'keypress' {
-    export interface KeypressEvent {
-        name?: string;
-        ctrl: boolean;
-        meta: boolean;
-        shift: boolean;
-        sequence: string;
-    }
-}
-import type { KeypressEvent } from 'keypress';
+// Cập nhật 2: Import type từ ./vendor/keypress.js
+import type { KeypressEvent } from './vendor/keypress.js';
+
+// Block `declare module 'keypress'` đã bị xóa
 
 // Import all functional modules
 import { editingMethods } from './editor.editing.js';

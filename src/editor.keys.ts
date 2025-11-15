@@ -2,18 +2,7 @@
 
 import { CliEditor } from './editor.js';
 import { KEYS } from './constants.js';
-import type { KeypressEvent } from 'keypress';
-
-// Local module declaration for keypress to satisfy TS imports
-declare module 'keypress' {
-    export interface KeypressEvent {
-        name?: string;
-        ctrl: boolean;
-        meta: boolean;
-        shift: boolean;
-        sequence: string;
-    }
-}
+import type { KeypressEvent } from './vendor/keypress.js';
 
 // (FIX TS2339 & TS2724) Export all function types for merging
 export type TKeyHandlingMethods = {
@@ -35,31 +24,35 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     if (this.isExiting) {
         return;
     }
+    
+    let keyName: string | undefined = undefined;
+    let edited = false; 
 
-    // CRASH FIX: Handle case where 'key' is undefined (a normal character key)
+    // --- 1. Xử lý trường hợp key là null/undefined (Ký tự in được) ---
     if (!key) {
-        if (ch && ch >= ' ' && ch <= '~') {
-            this.handleCharacterKey(ch);
-            this.recalculateVisualRows();
+        if (ch && ch.length === 1 && ch >= ' ' && ch <= '~') {
+            edited = this.handleEditKeys(ch);
+            if (edited) {
+                this.saveState(); 
+                this.recalculateVisualRows(); // Phải tính toán lại sau khi gõ
+            }
             this.render();
+            return;
         }
         return; 
     }
     
-    // --- From here, 'key' object is guaranteed to exist ---
+    // --- 2. Từ đây, 'key' object là đảm bảo có (phím đặc biệt hoặc Ctrl/Meta) ---
 
-    let keyName: string | undefined = undefined;
-    let edited = false; 
-
-    // 1. Map Control sequences (Ctrl+Arrow for selection)
+    // 2.1. Ánh xạ Control sequences (Ctrl+Arrow cho selection)
     if (key.ctrl) {
         if (key.name === 'up') keyName = KEYS.CTRL_ARROW_UP;
         else if (key.name === 'down') keyName = KEYS.CTRL_ARROW_DOWN;
         else if (key.name === 'left') keyName = KEYS.CTRL_ARROW_LEFT;
         else if (key.name === 'right') keyName = KEYS.CTRL_ARROW_RIGHT;
-        else keyName = key.sequence; // Use sequence for Ctrl+S, Ctrl+C, etc.
+        else keyName = key.sequence; 
     } else {
-        // 2. (FIXED) Map standard navigation keys (Arrow, Home, End)
+        // 2.2. Ánh xạ phím tiêu chuẩn (Arrow, Home, End, Enter, Tab)
         if (key.name === 'up') keyName = KEYS.ARROW_UP;
         else if (key.name === 'down') keyName = KEYS.ARROW_DOWN;
         else if (key.name === 'left') keyName = KEYS.ARROW_LEFT;
@@ -72,59 +65,40 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else if (key.name === 'backspace') keyName = KEYS.BACKSPACE;
         else if (key.name === 'return') keyName = KEYS.ENTER;
         else if (key.name === 'tab') keyName = KEYS.TAB;
-        else keyName = key.sequence; // Fallback
+        else keyName = key.sequence; 
     }
 
-    // 3. (FIXED) Handle printable characters immediately
-    // This was the source of the "no typing" bug.
-    // We must check for characters *before* routing to handleEditKeys.
-    if (keyName && keyName.length === 1 && keyName >= ' ' && keyName <= '~' && !key.ctrl && !key.meta) {
-        this.handleCharacterKey(keyName);
-        this.recalculateVisualRows();
-        this.render();
-        return;
-    }
-
-    // 4. Mode Routing (If it's not a character, it's a command)
+    // --- 3. Định tuyến theo Mode ---
     if (this.mode === 'search') {
         this.handleSearchKeys(keyName || ch);
     } else {
-        // 5. Handle Selection Keys (Ctrl+Arrow)
+        // 4. Xử lý phím lựa chọn (Ctrl+Arrow) - Navigation
         switch (keyName) {
             case KEYS.CTRL_ARROW_UP:
-                this.startOrUpdateSelection();
-                this.moveCursorVisually(-1);
-                this.render();
-                return;
             case KEYS.CTRL_ARROW_DOWN:
-                this.startOrUpdateSelection();
-                this.moveCursorVisually(1);
-                this.render();
-                return;
             case KEYS.CTRL_ARROW_LEFT:
-                this.startOrUpdateSelection();
-                this.moveCursorLogically(-1);
-                this.render();
-                return;
             case KEYS.CTRL_ARROW_RIGHT:
                 this.startOrUpdateSelection();
-                this.moveCursorLogically(1);
+                if (keyName === KEYS.CTRL_ARROW_UP) this.moveCursorVisually(-1);
+                else if (keyName === KEYS.CTRL_ARROW_DOWN) this.moveCursorVisually(1);
+                else if (keyName === KEYS.CTRL_ARROW_LEFT) this.moveCursorLogically(-1);
+                else if (keyName === KEYS.CTRL_ARROW_RIGHT) this.moveCursorLogically(1);
                 this.render();
                 return;
         }
 
-        // 6. Handle all other command keys (Editing/Commands)
+        // 5. Xử lý tất cả các phím lệnh/chỉnh sửa khác
         edited = this.handleEditKeys(keyName || ch);
     }
 
-    // 7. State Update and Render
+    // 6. Cập nhật Trạng thái và Render
     if (edited) {
-        this.saveState();
-        this.recalculateVisualRows();
+        this.saveState(); // <-- Chỉ gọi khi gõ phím, xóa, v.v.
+        this.recalculateVisualRows(); // Tính toán lại layout
     }
 
     if (!this.isExiting) {
-        this.render();
+        this.render(); // Render cuối cùng (với visual rows đã được cập nhật nếu cần)
     }
 }
 
@@ -133,11 +107,6 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
  * Returns true if content was modified.
  */
 function handleEditKeys(this: CliEditor, key: string): boolean {
-    // (FIXED) Removed the guard clause that was blocking typing.
-    // if (key.length === 1 && key >= ' ' && key <= '~') {
-    //     return false;
-    // }
-
     // Cancel selection on normal navigation
     const isNavigation = [
         KEYS.ARROW_UP, KEYS.ARROW_DOWN, KEYS.ARROW_LEFT, KEYS.ARROW_RIGHT,
@@ -151,7 +120,6 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
         }
     }
     
-    // Commands that return Promises must be wrapped in a sync call here
     switch (key) {
         // --- Exit / Save ---
         case KEYS.CTRL_Q:
@@ -164,7 +132,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             this.handleCopy();
             return false;
         
-        // --- Navigation ---
+        // --- Navigation (Non-Selection) ---
         case KEYS.ARROW_UP:
             this.moveCursorVisually(-1);
             return false;
@@ -213,12 +181,17 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
         case KEYS.CTRL_G:
             this.findNext();
             return false;
+            
+        // ***** SỬA LỖI VISUAL *****
+        // Sau khi undo/redo, chúng ta PHẢI tính toán lại visual rows
         case KEYS.CTRL_Z:
             this.undo();
-            return true; 
+            this.recalculateVisualRows(); // <-- THÊM DÒNG NÀY
+            return false; 
         case KEYS.CTRL_Y:
             this.redo();
-            return true; 
+            this.recalculateVisualRows(); // <-- THÊM DÒNG NÀY
+            return false; 
 
         // --- Clipboard ---
         case KEYS.CTRL_K: // Cut Line (Traditional)
@@ -228,14 +201,19 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             this.pasteLine();
             return true;
         case KEYS.CTRL_X: // Cut Selection
-            this.cutSelection(); // Synchronous wrapper for cutSelectionAsync
+            this.cutSelection(); 
             return true;
         case KEYS.CTRL_V: // Paste Selection
             this.pasteSelection();
             return true;
 
+        // Xử lý Ký tự in được
         default:
-            return false;
+            if (key.length === 1 && key >= ' ' && key <= '~') {
+                this.handleCharacterKey(key);
+                return true; 
+            }
+            return false; 
     }
 }
 

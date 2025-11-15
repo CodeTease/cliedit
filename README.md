@@ -1,6 +1,6 @@
 # cliedit
 
-A lightweight, zero-dependency (other than `keypress`), raw-mode terminal editor component for Node.js.
+A lightweight, zero-dependency, raw-mode terminal editor component for Node.js.
 
 `cliedit` is designed to be imported into your own CLI application to provide a full-featured, TTY-based text editing experience. It's perfect for applications that need to ask the user for multi-line input, edit configuration files, or write commit messages.
 
@@ -82,6 +82,10 @@ import type {
   NormalizedRange,
 } from 'cliedit';
 ```
+
+## Acknowledgements
+
+Please see the [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) file for important copyright information regarding the vendored `keypress` component.
 
 ## License
 
