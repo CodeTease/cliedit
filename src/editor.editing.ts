@@ -63,14 +63,23 @@ function insertSoftTab(this: CliEditor): void {
 
 /**
  * Inserts a new line, splitting the current line at the cursor position.
+ * Implements auto-indent.
  */
 function insertNewLine(this: CliEditor): void {
     const line = this.lines[this.cursorY] || '';
+    
+    // Find indentation of the current line
+    const match = line.match(/^(\s*)/);
+    const indent = match ? match[1] : '';
+    
     const remainder = line.slice(this.cursorX);
     this.lines[this.cursorY] = line.slice(0, this.cursorX);
-    this.lines.splice(this.cursorY + 1, 0, remainder);
+    
+    // Add new line with the same indentation + remainder
+    this.lines.splice(this.cursorY + 1, 0, indent + remainder);
+    
     this.cursorY++;
-    this.cursorX = 0;
+    this.cursorX = indent.length; // Move cursor to end of indent
     this.setDirty();
 }
 

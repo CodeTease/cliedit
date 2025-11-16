@@ -79,13 +79,25 @@ function render(this: CliEditor): void {
             
             const isCursorPosition = (visualRowIndex === currentVisualRowIndex && i === cursorVisualX);
             const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
+            
+            // Highlight search result under cursor
+            const isSearchResult = (
+                this.searchResultIndex !== -1 &&
+                this.searchResults[this.searchResultIndex]?.y === logicalY &&
+                logicalX >= this.searchResults[this.searchResultIndex]?.x &&
+                logicalX < (this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length)
+            );
 
             if (isSelected) {
                 buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
             } else if (isCursorPosition) {
                  // Cursor is a single inverted character if not already covered by selection
                  buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
-            } else {
+            } else if (isSearchResult) {
+                // Highlight search result
+                buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+            }
+            else {
                 buffer += char;
             }
         }
@@ -143,20 +155,34 @@ function renderStatusBar(this: CliEditor): string {
     const contentWidth = this.screenCols;
     
     // --- Line 1: Mode, File Status, Position ---
-    if (this.mode === 'search') {
-      status = `SEARCH: ${this.searchQuery}`;
-    } else {
-      const visualRowIndex = this.findCurrentVisualRowIndex();
-      const visualRow = this.visualRows[visualRowIndex];
-      const visualX = visualRow ? (this.cursorX - visualRow.logicalXStart) : 0;
-      
-      const fileStatus = this.isDirty ? `* ${this.filepath}` : this.filepath;
-      const pos = `Ln ${this.cursorY + 1}, Col ${this.cursorX + 1} (View: ${visualRowIndex + 1},${visualX + 1})`;
-      
-      const statusLeft = `[${fileStatus}]`.padEnd(Math.floor(contentWidth * 0.5));
-      const statusRight = pos.padStart(Math.floor(contentWidth * 0.5));
+    switch (this.mode) {
+        case 'search_find':
+            status = (this.replaceQuery === null ? 'Find: ' : 'Find: ') + this.searchQuery;
+            break;
+        case 'search_replace':
+            status = 'Replace with: ' + this.replaceQuery;
+            break;
+        case 'goto_line':
+            status = 'Go to Line: ' + this.goToLineQuery;
+            break;
+        case 'search_confirm':
+            // The (y/n/a/q) prompt is set via setStatusMessage
+            status = this.statusMessage; 
+            break;
+        case 'edit':
+        default:
+            const visualRowIndex = this.findCurrentVisualRowIndex();
+            const visualRow = this.visualRows[visualRowIndex];
+            const visualX = visualRow ? (this.cursorX - visualRow.logicalXStart) : 0;
+            
+            const fileStatus = this.isDirty ? `* ${this.filepath}` : this.filepath;
+            const pos = `Ln ${this.cursorY + 1}, Col ${this.cursorX + 1} (View: ${visualRowIndex + 1},${visualX + 1})`;
+            
+            const statusLeft = `[${fileStatus}]`.padEnd(Math.floor(contentWidth * 0.5));
+            const statusRight = pos.padStart(Math.floor(contentWidth * 0.5));
 
-      status = statusLeft + statusRight;
+            status = statusLeft + statusRight;
+            break;
     }
     
     status = status.padEnd(contentWidth);
@@ -165,7 +191,8 @@ function renderStatusBar(this: CliEditor): string {
     // --- Line 2: Message/Help line ---
     buffer += `\x1b[${this.screenRows + this.screenStartRow + 1};1H`; 
     
-    const message = this.statusMessage.padEnd(contentWidth);
+    // Show prompt message if in search mode, otherwise show default help
+    const message = (this.mode === 'edit' ? this.DEFAULT_STATUS : this.statusMessage).padEnd(contentWidth);
     buffer += `${message}${ANSI.CLEAR_LINE}`;
     
     return buffer;

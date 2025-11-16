@@ -9,6 +9,8 @@ export type TKeyHandlingMethods = {
     handleKeypressEvent: (ch: string, key: KeypressEvent) => void;
     handleEditKeys: (key: string) => boolean;
     handleSearchKeys: (key: string) => void;
+    handleSearchConfirmKeys: (key: string) => void;
+    handleGoToLineKeys: (key: string) => void;
     handleCtrlQ: () => void;
     handleCopy: () => Promise<void>;
     handleCharacterKey: (ch: string) => void;
@@ -31,10 +33,18 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     // --- 1. Xử lý trường hợp key là null/undefined (Ký tự in được) ---
     if (!key) {
         if (ch && ch.length === 1 && ch >= ' ' && ch <= '~') {
-            edited = this.handleEditKeys(ch);
-            if (edited) {
-                this.saveState(); 
-                this.recalculateVisualRows(); // Phải tính toán lại sau khi gõ
+            if (this.mode === 'search_find' || this.mode === 'search_replace') {
+                this.handleSearchKeys(ch);
+            } else if (this.mode === 'goto_line') {
+                this.handleGoToLineKeys(ch);
+            } else if (this.mode === 'edit') {
+                edited = this.handleEditKeys(ch);
+                if (edited) {
+                    this.saveState(); 
+                    this.recalculateVisualRows(); // Phải tính toán lại sau khi gõ
+                }
+            } else if (this.mode === 'search_confirm') {
+                this.handleSearchConfirmKeys(ch);
             }
             this.render();
             return;
@@ -69,8 +79,12 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     }
 
     // --- 3. Định tuyến theo Mode ---
-    if (this.mode === 'search') {
+    if (this.mode === 'search_find' || this.mode === 'search_replace') {
         this.handleSearchKeys(keyName || ch);
+    } else if (this.mode === 'search_confirm') {
+        this.handleSearchConfirmKeys(keyName || ch);
+    } else if (this.mode === 'goto_line') {
+        this.handleGoToLineKeys(keyName || ch);
     } else {
         // 4. Xử lý phím lựa chọn (Ctrl+Arrow) - Navigation
         switch (keyName) {
@@ -176,7 +190,13 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
 
         // --- Search & History ---
         case KEYS.CTRL_W:
-            this.enterSearchMode();
+            this.enterFindMode();
+            return false;
+        case KEYS.CTRL_R:
+            this.enterReplaceMode();
+            return false;
+        case KEYS.CTRL_L:
+            this.enterGoToLineMode();
             return false;
         case KEYS.CTRL_G:
             this.findNext();
@@ -280,28 +300,129 @@ async function handleSave(this: CliEditor): Promise<void> {
 
 
 /**
- * Handles Search Mode input keys.
+ * Handles Search Mode input keys (for 'search_find' and 'search_replace').
  */
 function handleSearchKeys(this: CliEditor, key: string): void {
+    const cancelSearch = () => {
+        this.mode = 'edit';
+        this.searchQuery = '';
+        this.replaceQuery = null;
+        this.searchResults = [];
+        this.searchResultIndex = -1;
+        this.setStatusMessage('Cancelled');
+    };
+
     switch (key) {
         case KEYS.ENTER:
-            this.executeSearch();
-            this.mode = 'edit';
-            this.findNext();
+            if (this.mode === 'search_find') {
+                if (this.replaceQuery === null) { 
+                    // Find-Only Flow: Execute search and find first
+                    this.executeSearch();
+                    this.mode = 'edit';
+                    this.findNext();
+                } else { 
+                    // Replace Flow: Transition to get replace string
+                    this.mode = 'search_replace';
+                    this.setStatusMessage('Replace with: ');
+                }
+            } else if (this.mode === 'search_replace') {
+                // Replace Flow: We have both strings, execute and find first
+                this.executeSearch();
+                this.mode = 'edit';
+                this.findNext();
+            }
             break;
         case KEYS.ESCAPE:
         case KEYS.CTRL_C:
         case KEYS.CTRL_Q:
-            this.mode = 'edit';
-            this.searchQuery = '';
-            this.setStatusMessage('Search cancelled');
+            cancelSearch();
             break;
         case KEYS.BACKSPACE:
-            this.searchQuery = this.searchQuery.slice(0, -1);
+            if (this.mode === 'search_find') {
+                this.searchQuery = this.searchQuery.slice(0, -1);
+            } else {
+                this.replaceQuery = this.replaceQuery!.slice(0, -1);
+            }
             break;
         default:
             if (key.length === 1 && key >= ' ' && key <= '~') {
-                this.searchQuery += key;
+                if (this.mode === 'search_find') {
+                    this.searchQuery += key;
+                } else {
+                    this.replaceQuery += key;
+                }
+            }
+    }
+    
+    // Update status bar message live (if not cancelling)
+    if (this.mode === 'search_find') {
+        this.setStatusMessage((this.replaceQuery === null ? 'Find: ' : 'Find: ') + this.searchQuery);
+    } else if (this.mode === 'search_replace') {
+        this.setStatusMessage('Replace with: ' + this.replaceQuery);
+    }
+}
+
+/**
+ * Handles keypresses during the (y/n/a/q) confirmation step.
+ */
+function handleSearchConfirmKeys(this: CliEditor, key: string): void {
+    switch (key.toLowerCase()) {
+        case 'y': // Yes
+            this.replaceCurrentAndFindNext();
+            break;
+        case 'n': // No
+            this.findNext();
+            break;
+        case 'a': // All
+            this.replaceAll();
+            break;
+        case 'q': // Quit
+        case KEYS.ESCAPE:
+        case KEYS.CTRL_C:
+        case KEYS.CTRL_Q:
+            this.mode = 'edit';
+            this.searchResults = [];
+            this.searchResultIndex = -1;
+            this.setStatusMessage('Replace cancelled');
+            break;
+    }
+}
+
+/**
+ * Handles keypresses during the 'Go to Line' prompt.
+ */
+function handleGoToLineKeys(this: CliEditor, key: string): void {
+    const cancel = () => {
+        this.mode = 'edit';
+        this.goToLineQuery = '';
+        this.setStatusMessage('Cancelled');
+    };
+
+    switch (key) {
+        case KEYS.ENTER:
+            const lineNumber = parseInt(this.goToLineQuery, 10);
+            if (!isNaN(lineNumber) && lineNumber > 0) {
+                this.jumpToLine(lineNumber);
+            } else {
+                this.mode = 'edit';
+                this.setStatusMessage('Invalid line number');
+            }
+            this.goToLineQuery = '';
+            break;
+        case KEYS.ESCAPE:
+        case KEYS.CTRL_C:
+        case KEYS.CTRL_Q:
+            cancel();
+            break;
+        case KEYS.BACKSPACE:
+            this.goToLineQuery = this.goToLineQuery.slice(0, -1);
+            this.setStatusMessage('Go to Line: ' + this.goToLineQuery);
+            break;
+        default:
+            // Only accept digits
+            if (key.length === 1 && key >= '0' && key <= '9') {
+                this.goToLineQuery += key;
+                this.setStatusMessage('Go to Line: ' + this.goToLineQuery);
             }
     }
 }
@@ -311,6 +432,8 @@ export const keyHandlingMethods: TKeyHandlingMethods = {
     handleKeypressEvent,
     handleEditKeys,
     handleSearchKeys,
+    handleSearchConfirmKeys,
+    handleGoToLineKeys,
     handleCtrlQ,
     handleCopy,
     handleCharacterKey,

@@ -43,7 +43,7 @@ export interface CliEditor extends
   TKeyHandlingMethods,
   TSelectionMethods {}
 
-const DEFAULT_STATUS = 'HELP: Ctrl+S = Save & Quit | Ctrl+Q = Quit | Ctrl+C = Copy All | Ctrl+Arrow = Select';
+const DEFAULT_STATUS = 'HELP: Ctrl+S = Save | Ctrl+Q = Quit | Ctrl+W = Find | Ctrl+R = Replace | Ctrl+L = Go to Line';
 
 /**
  * Main editor class managing application state, TTY interaction, and rendering.
@@ -69,6 +69,8 @@ export class CliEditor {
   public quitConfirm: boolean = false;
   public readonly DEFAULT_STATUS = DEFAULT_STATUS;
   public searchQuery: string = '';
+  public replaceQuery: string | null = null; // null = Find mode, string = Replace mode
+  public goToLineQuery: string = ''; // For Go to Line prompt
   public searchResults: { y: number, x: number }[] = [];
   public searchResultIndex: number = -1;
   public history: HistoryManager;

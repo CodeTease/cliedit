@@ -158,6 +158,17 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
     key.name = parts[1].toLowerCase();
     key.meta = true;
     key.shift = /^[A-Z]$/.test(parts[1]);
+  
+  // ***** START BUG FIX *****
+  // The original library failed to handle any standard printable
+  // characters (numbers, symbols) that weren't a-z or A-Z.
+  } else if (s.length === 1 && s >= ' ' && s <= '~') {
+    // Standard printable character (digits, symbols, etc.)
+    key.name = s;
+    // We can infer shift status for common symbols
+    key.shift = '!@#$%^&*()_+{}|:"<>?~'.includes(s);
+  // ***** END BUG FIX *****
+
   } else if ((parts = functionKeyCodeRe.exec(s))) {
     // ansi escape sequence
 

@@ -137,6 +137,33 @@ function scroll(this: CliEditor): void {
     }
 }
 
+/**
+ * Jumps the cursor to a specific line number (1-based).
+ */
+function jumpToLine(this: CliEditor, lineNumber: number): void {
+    const targetY = lineNumber - 1; // Convert 1-based to 0-based index
+    
+    // Clamp targetY to valid range
+    this.cursorY = Math.max(0, Math.min(targetY, this.lines.length - 1));
+    this.cursorX = 0; // Move to start of line
+    
+    // Adjust scroll
+    const visualRowIndex = this.findCurrentVisualRowIndex();
+    this.rowOffset = Math.max(0, visualRowIndex - Math.floor(this.screenRows / 2));
+    
+    this.mode = 'edit';
+    this.setStatusMessage(`Jumped to line ${lineNumber}`, 1000);
+}
+
+/**
+ * Enters Go To Line mode.
+ */
+function enterGoToLineMode(this: CliEditor): void {
+    this.mode = 'goto_line';
+    this.goToLineQuery = '';
+    this.setStatusMessage('Go to Line (ESC to cancel): ');
+}
+
 export const navigationMethods = {
     findCurrentVisualRowIndex,
     moveCursorLogically,
@@ -145,4 +172,6 @@ export const navigationMethods = {
     findVisualRowEnd,
     adjustCursorPosition,
     scroll,
+    jumpToLine,
+    enterGoToLineMode,
 };

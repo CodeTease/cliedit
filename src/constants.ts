@@ -24,7 +24,9 @@ export const KEYS = {
   CTRL_Q: '\x11', // Quit
   CTRL_S: '\x13', // Save
   CTRL_W: '\x17', // Find (Where is)
+  CTRL_R: '\x12', // Replace
   CTRL_G: '\x07', // Go to next
+  CTRL_L: '\x0c', // Go to Line (L)
   CTRL_Z: '\x1a', // Undo
   CTRL_Y: '\x19', // Redo
   CTRL_K: '\x0b', // Cut/Kill line

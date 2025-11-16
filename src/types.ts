@@ -19,4 +19,4 @@ export interface VisualRow {
     content: string;
 }
 
-export type EditorMode = 'edit' | 'search';
+export type EditorMode = 'edit' | 'search_find' | 'search_replace' | 'search_confirm' | 'goto_line';

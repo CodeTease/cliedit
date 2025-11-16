@@ -14,10 +14,17 @@ function setClipboard(this: CliEditor, text: string): Promise<void> {
     return new Promise((resolve, reject) => {
       let command: string;
       switch (platform()) {
-        case 'darwin': command = 'pbcopy'; break;
-        case 'win32': command = 'clip'; break;
+        case 'darwin': 
+            command = 'pbcopy'; 
+            break;
+        case 'win32': 
+            command = 'clip'; 
+            break;
+        case 'linux': // <--- THÊM HỖ TRỢ LINUX
+            command = 'xclip -selection clipboard';
+            break;
         default:
-          this.setStatusMessage('Clipboard only supported on macOS/Windows for now');
+          this.setStatusMessage('Clipboard not supported on this platform');
           return resolve();
       }
       const process = exec(command, (error) => {
@@ -39,10 +46,17 @@ function getClipboard(this: CliEditor): Promise<string> {
     return new Promise((resolve, reject) => {
       let command: string;
       switch (platform()) {
-        case 'darwin': command = 'pbpaste'; break;
-        case 'win32': command = 'powershell -command "Get-Clipboard"'; break;
+        case 'darwin': 
+            command = 'pbpaste'; 
+            break;
+        case 'win32': 
+            command = 'powershell -command "Get-Clipboard"'; 
+            break;
+        case 'linux': // <--- THÊM HỖ TRỢ LINUX
+            command = 'xclip -selection clipboard -o'; // -o (hoặc -out) để đọc
+            break;
         default:
-          this.setStatusMessage('Clipboard only supported on macOS/Windows for now');
+          this.setStatusMessage('Clipboard not supported on this platform');
           return resolve('');
       }
       exec(command, (error, stdout) => {
