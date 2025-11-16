@@ -4,7 +4,7 @@ A lightweight, zero-dependency, raw-mode terminal editor component for Node.js.
 
 `cliedit` is designed to be imported into your own CLI application to provide a full-featured, TTY-based text editing experience. It's perfect for applications that need to ask the user for multi-line input, edit configuration files, or write commit messages.
 
-It includes line wrapping, visual navigation, undo/redo, text selection, and clipboard support.
+It includes line wrapping, visual navigation, smart auto-indentation, undo/redo, text selection, Find/Replace, and cross-platform clipboard support.
 
 ## Features
 
@@ -13,18 +13,21 @@ It includes line wrapping, visual navigation, undo/redo, text selection, and cli
 - **Visual Navigation:** `Up`/`Down` arrows move by visual rows, not logical lines.
 - **Undo/Redo:** `Ctrl+Z` / `Ctrl+Y` for persistent history.
 - **Text Selection:** `Ctrl+Arrow` keys to select text.
-- **Clipboard Support:** `Ctrl+C` (Copy), `Ctrl+X` (Cut), `Ctrl+V` (Paste) for system clipboard (macOS/Windows).
+- **Clipboard Support:** `Ctrl+C` (Copy), `Ctrl+X` (Cut), `Ctrl+V` (Paste) for system clipboard (macOS, Windows, **and Linux** via `xclip`).
 - **File I/O:** Loads from and saves to the filesystem.
-- **Search:** `Ctrl+W` to find text.
+- **Search & Replace:** `Ctrl+W` to find text, `Ctrl+R` to find and replace interactively.
+- **Go to Line:** `Ctrl+L` to quickly jump to a specific line number.
+- **Smart Auto-Indentation:** Automatically preserves indentation level when pressing Enter.
 
 ## Installation
 ```bash
 npm install cliedit
-```
+````
 
 ## Usage
 
 The package exports an `async` function `openEditor` that returns a `Promise`. The promise resolves when the user quits the editor.
+
 ```javascript
 import { openEditor } from 'cliedit';
 import path from 'path';
@@ -60,13 +63,15 @@ getCommitMessage();
 `openEditor(filepath: string)`
 
 Opens the editor for the specified file. If the file doesn't exist, it will be created upon saving.
-- **Returns:** `Promise<{ saved: boolean; content: string }>`
-    * `saved`: `true` if the user saved (Ctrl+S), `false` otherwise (Ctrl+Q).
-    * `content`: The final content of the file as a string.
+
+  - **Returns:** `Promise<{ saved: boolean; content: string }>`
+      * `saved`: `true` if the user saved (Ctrl+S), `false` otherwise (Ctrl+Q).
+      * `content`: The final content of the file as a string.
 
 `CliEditor`
 
 The main editor class. You can import this directly if you need to extend or instantiate the editor with custom logic.
+
 ```javascript
 import { CliEditor } from 'cliedit';
 ```
@@ -74,6 +79,7 @@ import { CliEditor } from 'cliedit';
 ### Types
 
 Key types are also exported for convenience:
+
 ```javascript
 import type {
   DocumentState,
