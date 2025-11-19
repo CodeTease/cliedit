@@ -123,6 +123,40 @@ function deleteForward(this: CliEditor): void {
     this.setDirty();
 }
 
+/**
+ * Handles auto-pairing of brackets and quotes.
+ * If text is selected, it wraps the selection.
+ * Otherwise, it inserts the pair and places the cursor in the middle.
+ * @param openChar The opening character that was typed (e.g., '(', '[', '{').
+ * @param closeChar The corresponding closing character (e.g., ')', ']', '}').
+ */
+function handleAutoPair(this: CliEditor, openChar: string, closeChar: string): void {
+    if (this.selectionAnchor) {
+        // There is a selection, so we need to wrap it.
+        const selection = this.getNormalizedSelection();
+        if (!selection) return; // Should not happen if anchor exists, but good practice
+
+        const selectedText = this.getSelectedText();
+        
+        // The deleteSelectedText() function automatically moves the cursor to the start
+        // of the selection, so we don't need to set it manually.
+        this.deleteSelectedText();
+        
+        // Wrap the original selected text
+        const wrappedText = openChar + selectedText + closeChar;
+        this.insertContentAtCursor(wrappedText.split('\n'));
+        // The selection is already cancelled by deleteSelectedText().
+        
+    } else {
+        // No selection, just insert the opening and closing characters
+        this.insertCharacter(openChar + closeChar);
+        // Move cursor back one position to be in between the pair
+        this.cursorX--;
+    }
+    this.setDirty();
+}
+
+
 export const editingMethods = {
     insertContentAtCursor,
     insertCharacter,
@@ -130,4 +164,5 @@ export const editingMethods = {
     insertNewLine,
     deleteBackward,
     deleteForward,
+    handleAutoPair,
 };

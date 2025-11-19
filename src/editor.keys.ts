@@ -2,6 +2,14 @@
 
 import { CliEditor } from './editor.js';
 import { KEYS } from './constants.js';
+
+const PAIR_MAP: Record<string, string> = {
+    '(': ')',
+    '[': ']',
+    '{': '}',
+    "'": "'",
+    '"': '"',
+};
 import type { KeypressEvent } from './vendor/keypress.js';
 
 // (FIX TS2339 & TS2724) Export all function types for merging
@@ -177,8 +185,23 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             this.insertNewLine();
             return true;
         case KEYS.BACKSPACE:
-            if (this.selectionAnchor) this.deleteSelectedText();
-            else this.deleteBackward();
+            // Handle auto-pair deletion
+            const line = this.lines[this.cursorY] || '';
+            const charBefore = line[this.cursorX - 1];
+            const charAfter = line[this.cursorX];
+            if (
+                !this.selectionAnchor &&
+                charBefore && charAfter &&
+                PAIR_MAP[charBefore] === charAfter
+            ) {
+                // Delete both characters of the pair
+                this.lines[this.cursorY] = line.slice(0, this.cursorX - 1) + line.slice(this.cursorX + 1);
+                this.cursorX--; // Move cursor back
+                this.setDirty();
+            } else {
+                if (this.selectionAnchor) this.deleteSelectedText();
+                else this.deleteBackward();
+            }
             return true;
         case KEYS.DELETE:
             if (this.selectionAnchor) this.deleteSelectedText();
@@ -241,11 +264,29 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
  * Handles insertion of a character, deleting selection first if it exists.
  */
 function handleCharacterKey(this: CliEditor, ch: string): void {
-    if (this.selectionAnchor) {
-        this.deleteSelectedText();
+    const line = this.lines[this.cursorY] || '';
+    const charAfter = line[this.cursorX];
+
+    // If user types a closing character and it's what we expect, just move the cursor.
+    if (
+        !this.selectionAnchor &&
+        (ch === ')' || ch === ']' || ch === '}' || ch === "'" || ch === '"') &&
+        charAfter === ch
+    ) {
+        this.cursorX++;
+        return;
     }
-    this.insertCharacter(ch);
-    this.setDirty();
+
+    const closeChar = PAIR_MAP[ch];
+    if (closeChar) {
+        this.handleAutoPair(ch, closeChar);
+    } else {
+        if (this.selectionAnchor) {
+            this.deleteSelectedText();
+        }
+        this.insertCharacter(ch);
+        this.setDirty();
+    }
 }
 
 /**
