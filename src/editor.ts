@@ -4,7 +4,8 @@ import { promises as fs } from 'fs';
 import keypress from './vendor/keypress.js'; 
 import { ANSI, KEYS } from './constants.js';
 import { HistoryManager } from './history.js';
-import { DocumentState, VisualRow, EditorMode } from './types.js';
+import { DocumentState, VisualRow, EditorMode, EditorOptions } from './types.js';
+import { SwapManager } from './editor.swap.js';
 
 // --- LOCAL TS DECLARATION (FIX TS7016/TS2306) ---
 // Cập nhật 2: Import type từ ./vendor/keypress.js
@@ -60,6 +61,7 @@ export class CliEditor {
   public screenRows: number = 0;
   public screenCols: number = 0;
   public gutterWidth: number = 5;
+  public tabSize: number = 4;
   public screenStartRow: number = 1;
   public visualRows: VisualRow[] = [];
   public mode: EditorMode = 'edit';
@@ -74,21 +76,29 @@ export class CliEditor {
   public searchResults: { y: number, x: number }[] = [];
   public searchResultIndex: number = -1;
   public history: HistoryManager;
+  public swapManager: SwapManager;
   public isCleanedUp: boolean = false; 
   public resolvePromise: ((value: { saved: boolean; content: string }) => void) | null = null;
   public rejectPromise: ((reason?: any) => void) | null = null;
+  public inputStream: any; // ReadableStream
   
   // State flag indicating the editor is in the process of closing (prevents input/render race)
   public isExiting: boolean = false;
 
-  constructor(initialContent: string, filepath: string) {
+  constructor(initialContent: string, filepath: string, options: EditorOptions = {}) {
     this.lines = initialContent.split('\n');
     if (this.lines.length === 0) {
       this.lines = [''];
     }
     this.filepath = filepath;
+    this.gutterWidth = options.gutterWidth ?? 5;
+    this.tabSize = options.tabSize ?? 4;
+    this.inputStream = options.inputStream || process.stdin;
     this.history = new HistoryManager();
     this.saveState(true);
+    
+    // Initialize SwapManager
+    this.swapManager = new SwapManager(this.filepath, () => this.lines.join('\n'));
   }
 
   // --- Lifecycle Methods ---
@@ -96,17 +106,20 @@ export class CliEditor {
   public run(): Promise<{ saved: boolean; content: string }> {
     this.setupTerminal(); 
     this.render();
+    this.swapManager.start();
     
     return new Promise((resolve, reject) => {
       
       const performCleanup = (callback?: () => void) => {
+        this.swapManager.stop(); // Stop swap interval
+        
         if (this.isCleanedUp) {
             if (callback) callback();
             return;
         }
 
         // 1. Remove listeners immediately
-        process.stdin.removeAllListeners('keypress');
+        this.inputStream.removeAllListeners('keypress');
         process.stdout.removeAllListeners('resize');
         
         // 2. (FIX GHOST TUI) Write exit sequence and use callback to ensure it's written 
@@ -115,8 +128,10 @@ export class CliEditor {
             ANSI.CLEAR_SCREEN + ANSI.MOVE_CURSOR_TOP_LEFT + ANSI.SHOW_CURSOR + ANSI.EXIT_ALTERNATE_SCREEN, 
             () => {
                 // 3. Disable TTY raw mode and pause stdin after screen is cleared
-                process.stdin.setRawMode(false);
-                process.stdin.pause(); 
+                if (this.inputStream.setRawMode) {
+                   this.inputStream.setRawMode(false);
+                }
+                this.inputStream.pause(); 
                 this.isCleanedUp = true;
                 if (callback) callback();
             }
@@ -134,8 +149,15 @@ export class CliEditor {
   }
 
   private setupTerminal(): void {
-    if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      throw new Error('Editor requires a TTY environment.');
+    // If we are using a custom inputStream (re-opened TTY), it might be a ReadStream which is TTY.
+    // Check if it is TTY
+    if (!this.inputStream.isTTY && !process.stdin.isTTY) {
+       // If both are not TTY, we have a problem.
+       // But if inputStream is our manually opened TTY, isTTY should be true.
+    }
+    
+    if (!process.stdout.isTTY) {
+      throw new Error('Editor requires a TTY environment (stdout).');
     }
 
     this.updateScreenSize();
@@ -143,13 +165,16 @@ export class CliEditor {
 
     // Enter alternate screen and hide cursor
     process.stdout.write(ANSI.ENTER_ALTERNATE_SCREEN + ANSI.HIDE_CURSOR + ANSI.CLEAR_SCREEN);
-    process.stdin.setRawMode(true);
-    process.stdin.resume();
-    process.stdin.setEncoding('utf-8');
+    
+    if (this.inputStream.setRawMode) {
+        this.inputStream.setRawMode(true);
+    }
+    this.inputStream.resume();
+    this.inputStream.setEncoding('utf-8');
 
     // Setup keypress listener
-    keypress(process.stdin);
-    process.stdin.on('keypress', this.handleKeypressEvent.bind(this)); 
+    keypress(this.inputStream);
+    this.inputStream.on('keypress', this.handleKeypressEvent.bind(this)); 
     process.stdout.on('resize', this.handleResize.bind(this));
   }
 

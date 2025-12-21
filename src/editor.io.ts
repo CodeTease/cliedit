@@ -21,6 +21,7 @@ async function saveFile(this: CliEditor): Promise<void> {
     const content = this.lines.join('\n');
     try {
         await fs.writeFile(this.filepath, content, 'utf-8');
+        await this.swapManager.clear(); // Clear swap on successful save
         this.isDirty = false; // Reset dirty flag
         this.quitConfirm = false; // Reset quit confirmation
         this.setStatusMessage(`Saved: ${this.filepath}`, 2000);

@@ -1,3 +1,14 @@
 node_modules/
 dist/
 *.txt
+*.swp
+
+# Vegh files (CodeTease's Snapshot Tool)
+*.vegh
+# Vegh cache folder
+.veghcache/
+# PyVegh's Vegh Hooks (Optional)
+# .veghhooks.json
+# Old Vegh files extension, kept for backward compatibility
+*.snap 
+# Not a branding: Get PyVegh in https://pypi.org/project/pyvegh/ (probably just `pip install pyvegh`)

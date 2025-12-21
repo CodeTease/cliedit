@@ -33,6 +33,7 @@ export const KEYS = {
   CTRL_U: '\x15', // Paste/Un-kill
   CTRL_X: '\x18', // Cut Selection
   CTRL_V: '\x16', // Paste Selection
+  CTRL_M: '\x0d', // Match Bracket (Ctrl+M is often Enter, but we distinguish if possible or rely on context)
 
   // Selection Keys (Mapped to Ctrl+Arrow for reliable detection)
   CTRL_ARROW_UP: 'C-up',

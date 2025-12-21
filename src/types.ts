@@ -20,3 +20,9 @@ export interface VisualRow {
 }
 
 export type EditorMode = 'edit' | 'search_find' | 'search_replace' | 'search_confirm' | 'goto_line';
+
+export interface EditorOptions {
+    tabSize?: number;
+    gutterWidth?: number;
+    inputStream?: any; // stream.Readable
+}

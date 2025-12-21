@@ -174,4 +174,88 @@ export const navigationMethods = {
     scroll,
     jumpToLine,
     enterGoToLineMode,
+    moveCursorByWord,
+    matchBracket,
 };
+
+function moveCursorByWord(this: CliEditor, direction: 'left' | 'right'): void {
+    const line = this.lines[this.cursorY];
+    if (direction === 'left') {
+        if (this.cursorX === 0) {
+            if (this.cursorY > 0) {
+                this.cursorY--;
+                this.cursorX = this.lines[this.cursorY].length;
+            }
+        } else {
+            // Move left until we hit a non-word char, then until we hit a word char
+            // Simple logic: skip whitespace, then skip word chars
+            let i = this.cursorX - 1;
+            // 1. Skip spaces if we are currently on a space
+            while (i > 0 && line[i] === ' ') i--;
+            // 2. Skip non-spaces
+            while (i > 0 && line[i - 1] !== ' ') i--;
+            this.cursorX = i;
+        }
+    } else {
+        if (this.cursorX >= line.length) {
+            if (this.cursorY < this.lines.length - 1) {
+                this.cursorY++;
+                this.cursorX = 0;
+            }
+        } else {
+            let i = this.cursorX;
+            // 1. Skip current word chars
+            while (i < line.length && line[i] !== ' ') i++;
+            // 2. Skip spaces
+            while (i < line.length && line[i] === ' ') i++;
+            this.cursorX = i;
+        }
+    }
+}
+
+function matchBracket(this: CliEditor): void {
+    const line = this.lines[this.cursorY];
+    const char = line[this.cursorX];
+    const pairs: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
+    const revPairs: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
+    
+    if (pairs[char]) {
+        // Find closing
+        let depth = 1;
+        // Search forward
+        for (let y = this.cursorY; y < this.lines.length; y++) {
+            const l = this.lines[y];
+            const startX = (y === this.cursorY) ? this.cursorX + 1 : 0;
+            for (let x = startX; x < l.length; x++) {
+                if (l[x] === char) depth++;
+                else if (l[x] === pairs[char]) depth--;
+                
+                if (depth === 0) {
+                    this.cursorY = y;
+                    this.cursorX = x;
+                    this.scroll();
+                    return;
+                }
+            }
+        }
+    } else if (revPairs[char]) {
+        // Find opening
+        let depth = 1;
+        // Search backward
+        for (let y = this.cursorY; y >= 0; y--) {
+            const l = this.lines[y];
+            const startX = (y === this.cursorY) ? this.cursorX - 1 : l.length - 1;
+            for (let x = startX; x >= 0; x--) {
+                if (l[x] === char) depth++;
+                else if (l[x] === revPairs[char]) depth--;
+                
+                if (depth === 0) {
+                    this.cursorY = y;
+                    this.cursorX = x;
+                    this.scroll();
+                    return;
+                }
+            }
+        }
+    }
+}

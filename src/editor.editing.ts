@@ -55,10 +55,11 @@ function insertCharacter(this: CliEditor, char: string): void {
 }
 
 /**
- * Inserts a soft tab (4 spaces).
+ * Inserts a soft tab (using configured tabSize).
  */
 function insertSoftTab(this: CliEditor): void { 
-    this.insertCharacter('    '); 
+    const spaces = ' '.repeat(this.tabSize || 4);
+    this.insertCharacter(spaces); 
 }
 
 /**

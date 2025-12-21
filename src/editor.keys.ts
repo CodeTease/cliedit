@@ -24,6 +24,7 @@ export type TKeyHandlingMethods = {
     handleCharacterKey: (ch: string) => void;
     cutSelection: () => Promise<void>; 
     handleSave: () => Promise<void>; 
+    handleAltArrows: (keyName: string) => void;
 };
 
 /**
@@ -83,6 +84,8 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else if (key.name === 'backspace') keyName = KEYS.BACKSPACE;
         else if (key.name === 'return') keyName = KEYS.ENTER;
         else if (key.name === 'tab') keyName = KEYS.TAB;
+        else if (key.meta && key.name === 'left') keyName = 'ALT_LEFT';
+        else if (key.meta && key.name === 'right') keyName = 'ALT_RIGHT';
         else keyName = key.sequence; 
     }
 
@@ -122,6 +125,11 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     if (!this.isExiting) {
         this.render(); // Render cuối cùng (với visual rows đã được cập nhật nếu cần)
     }
+}
+
+function handleAltArrows(this: CliEditor, keyName: string): void {
+     if (keyName === 'ALT_LEFT') this.moveCursorByWord('left');
+     else if (keyName === 'ALT_RIGHT') this.moveCursorByWord('right');
 }
 
 /**
@@ -223,6 +231,21 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             return false;
         case KEYS.CTRL_G:
             this.findNext();
+            return false;
+        
+        // --- Smart Navigation ---
+        case 'ALT_LEFT':
+            this.moveCursorByWord('left');
+            return false;
+        case 'ALT_RIGHT':
+            this.moveCursorByWord('right');
+            return false;
+        case KEYS.CTRL_M: // Or any key for Bracket Match. Ctrl+M is technically Enter in some terms but if available...
+            // Let's use Ctrl+B (Bracket) if not taken? Ctrl+B is often bold, but here it's CLI.
+            // Or just check if key is match bracket key.
+            // Let's try to map a specific key or use Meta.
+            // For now, let's use Ctrl+B?
+            this.matchBracket();
             return false;
             
         // ***** SỬA LỖI VISUAL *****
@@ -480,4 +503,5 @@ export const keyHandlingMethods: TKeyHandlingMethods = {
     handleCharacterKey,
     cutSelection,
     handleSave,
+    handleAltArrows,
 };

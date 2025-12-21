@@ -18,6 +18,9 @@ It includes line wrapping, visual navigation, smart auto-indentation, undo/redo,
 - **Search & Replace:** `Ctrl+W` to find text, `Ctrl+R` to find and replace interactively.
 - **Go to Line:** `Ctrl+L` to quickly jump to a specific line number.
 - **Smart Auto-Indentation:** Automatically preserves indentation level when pressing Enter.
+- **Smart Navigation:** `Alt + Left/Right` to jump by words, `Ctrl + M` to jump between matching brackets.
+- **Piping Support:** Works with standard Unix pipes (e.g. `cat file.txt | cliedit`).
+- **Crash Recovery:** Automatically saves changes to a hidden swap file (e.g. `.filename.swp`) to prevent data loss.
 
 ## Installation
 ```bash
@@ -34,35 +37,61 @@ import path from 'path';
 
 async function getCommitMessage() {
   const tempFile = path.resolve(process.cwd(), 'COMMIT_MSG.txt');
-  console.log('Opening editor for commit message...');
+  
+  // Example with custom options
+  const options = {
+    tabSize: 2,
+    gutterWidth: 3
+  };
 
   try {
-    const result = await openEditor(tempFile);
-
-    // Give the terminal a moment to restore
-    await new Promise(res => setTimeout(res, 50));
+    const result = await openEditor(tempFile, options);
 
     if (result.saved) {
-      console.log('Message saved!');
-      console.log('---------------------');
-      console.log(result.content);
-      console.log('---------------------');
+      console.log('Message saved:', result.content);
     } else {
       console.log('Editor quit without saving.');
     }
   } catch (err) {
-    console.error('Editor failed to start:', err);
+    console.error('Editor failed:', err);
   }
 }
 
 getCommitMessage();
 ```
 
+### Piping Support
+
+`cliedit` supports standard input piping. When used in a pipeline, it reads the input content, then re-opens the TTY to allow interactive editing.
+
+```bash
+# Edit a file using cat
+cat README.md | node my-app.js
+
+# Edit the output of a command
+git diff | node my-app.js
+```
+
 ## Public API
 
-`openEditor(filepath: string)`
+`openEditor(filepath: string, options?: EditorOptions)`
 
-Opens the editor for the specified file. If the file doesn't exist, it will be created upon saving.
+Opens the editor for the specified file.
+
+- **filepath**: Path to the file to edit.
+- **options**: (Optional) Configuration object.
+    - `tabSize`: Number of spaces for a tab (default: 4).
+    - `gutterWidth`: Width of the line number gutter (default: 5).
+
+  - **Returns:** `Promise<{ saved: boolean; content: string }>`
+      * `saved`: `true` if the user saved (Ctrl+S), `false` otherwise (Ctrl+Q).
+      * `content`: The final content of the file as a string.
+
+### Crash Recovery
+
+`cliedit` includes a built-in safety mechanism. It periodically saves the current content to a hidden swap file (e.g., `.myfile.txt.swp`) in the same directory. 
+
+If the process crashes or is terminated abruptly, the next time you open the file, `cliedit` will detect the swap file and automatically recover the unsaved content, displaying a `RECOVERED FROM SWAP FILE` message.
 
   - **Returns:** `Promise<{ saved: boolean; content: string }>`
       * `saved`: `true` if the user saved (Ctrl+S), `false` otherwise (Ctrl+Q).
