@@ -51,6 +51,12 @@ function render(this: CliEditor): void {
     
     const selectionRange = this.getNormalizedSelection();
 
+    // Scrollbar calculations
+    const totalLines = this.visualRows.length;
+    const showScrollbar = totalLines > this.screenRows;
+    const thumbHeight = showScrollbar ? Math.max(1, Math.floor((this.screenRows / totalLines) * this.screenRows)) : 0;
+    const thumbStart = showScrollbar ? Math.floor((this.rowOffset / totalLines) * this.screenRows) : 0;
+
     // Draw visual rows
     for (let y = 0; y < this.screenRows; y++) {
       const visualRowIndex = y + this.rowOffset;
@@ -81,7 +87,20 @@ function render(this: CliEditor): void {
             const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
             
             // Highlight search result under cursor
-            const isSearchResult = (
+            // Check if this character is part of ANY search result
+            let isGlobalSearchResult = false;
+            if (this.searchResultMap.has(logicalY)) {
+                const matches = this.searchResultMap.get(logicalY)!;
+                for (const match of matches) {
+                    if (logicalX >= match.start && logicalX < match.end) {
+                        isGlobalSearchResult = true;
+                        break;
+                    }
+                }
+            }
+
+            // Check if this character is part of the CURRENTLY SELECTED search result
+            const isCurrentSearchResult = (
                 this.searchResultIndex !== -1 &&
                 this.searchResults[this.searchResultIndex]?.y === logicalY &&
                 logicalX >= this.searchResults[this.searchResultIndex]?.x &&
@@ -93,8 +112,11 @@ function render(this: CliEditor): void {
             } else if (isCursorPosition) {
                  // Cursor is a single inverted character if not already covered by selection
                  buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
-            } else if (isSearchResult) {
-                // Highlight search result
+            } else if (isCurrentSearchResult) {
+                // Selected Match: Invert + Underline (if supported) or just Invert
+                buffer += ANSI.INVERT_COLORS + '\x1b[4m' + char + ANSI.RESET_COLORS;
+            } else if (isGlobalSearchResult) {
+                // Global Match: Invert only
                 buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
             }
             else {
@@ -111,6 +133,14 @@ function render(this: CliEditor): void {
         }
 
         buffer += `${ANSI.CLEAR_LINE}`;
+      }
+
+      // Draw Scrollbar (Phase 2)
+      if (showScrollbar) {
+          const isThumb = y >= thumbStart && y < thumbStart + thumbHeight;
+          const scrollChar = isThumb ? '┃' : '│'; 
+          // Move to last column and draw
+          buffer += `\x1b[${this.screenStartRow + y};${this.screenCols}H${ANSI.RESET_COLORS}${scrollChar}`;
       }
     }
 

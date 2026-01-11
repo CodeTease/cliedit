@@ -74,6 +74,8 @@ export class CliEditor {
   public replaceQuery: string | null = null; // null = Find mode, string = Replace mode
   public goToLineQuery: string = ''; // For Go to Line prompt
   public searchResults: { y: number, x: number }[] = [];
+  // Map<lineNumber, Array<{ start, end }>> for fast rendering lookup
+  public searchResultMap: Map<number, Array<{ start: number; end: number }>> = new Map();
   public searchResultIndex: number = -1;
   public history: HistoryManager;
   public swapManager: SwapManager;
@@ -124,8 +126,9 @@ export class CliEditor {
         
         // 2. (FIX GHOST TUI) Write exit sequence and use callback to ensure it's written 
         // before Node.js fully releases the TTY.
+        // Disable mouse tracking (1000 and 1006)
         process.stdout.write(
-            ANSI.CLEAR_SCREEN + ANSI.MOVE_CURSOR_TOP_LEFT + ANSI.SHOW_CURSOR + ANSI.EXIT_ALTERNATE_SCREEN, 
+            ANSI.CLEAR_SCREEN + ANSI.MOVE_CURSOR_TOP_LEFT + ANSI.SHOW_CURSOR + ANSI.EXIT_ALTERNATE_SCREEN + '\x1b[?1000l' + '\x1b[?1006l', 
             () => {
                 // 3. Disable TTY raw mode and pause stdin after screen is cleared
                 if (this.inputStream.setRawMode) {
@@ -163,8 +166,8 @@ export class CliEditor {
     this.updateScreenSize();
     this.recalculateVisualRows();
 
-    // Enter alternate screen and hide cursor
-    process.stdout.write(ANSI.ENTER_ALTERNATE_SCREEN + ANSI.HIDE_CURSOR + ANSI.CLEAR_SCREEN);
+    // Enter alternate screen and hide cursor + Enable SGR Mouse (1006) and Button Event (1000)
+    process.stdout.write(ANSI.ENTER_ALTERNATE_SCREEN + ANSI.HIDE_CURSOR + ANSI.CLEAR_SCREEN + '\x1b[?1000h' + '\x1b[?1006h');
     
     if (this.inputStream.setRawMode) {
         this.inputStream.setRawMode(true);

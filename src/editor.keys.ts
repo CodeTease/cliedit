@@ -86,6 +86,9 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else if (key.name === 'tab') keyName = KEYS.TAB;
         else if (key.meta && key.name === 'left') keyName = 'ALT_LEFT';
         else if (key.meta && key.name === 'right') keyName = 'ALT_RIGHT';
+        // Handle Mouse Scroll events explicitly
+        else if (key.name === 'scrollup') keyName = 'SCROLL_UP';
+        else if (key.name === 'scrolldown') keyName = 'SCROLL_DOWN';
         else keyName = key.sequence; 
     }
 
@@ -113,7 +116,60 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         }
 
         // 5. Xử lý tất cả các phím lệnh/chỉnh sửa khác
-        edited = this.handleEditKeys(keyName || ch);
+        if (keyName === 'SCROLL_UP') {
+            const scrollAmount = 3;
+            this.rowOffset = Math.max(0, this.rowOffset - scrollAmount);
+            
+            // Adjust cursor if it falls out of view (below the viewport)
+            // Actually if we scroll UP, the viewport moves UP. The cursor might be BELOW the viewport.
+            // Wait, scroll UP means viewing lines ABOVE. Viewport index decreases.
+            // Cursor (if previously in view) might now be >= rowOffset + screenRows.
+            
+            // We need to ensure cursor is within [rowOffset, rowOffset + screenRows - 1]
+            // But verify after setting rowOffset.
+            const currentVisualRow = this.findCurrentVisualRowIndex();
+            const bottomEdge = this.rowOffset + this.screenRows - 1;
+            
+            if (currentVisualRow > bottomEdge) {
+                 const targetRow = this.visualRows[bottomEdge];
+                 this.cursorY = targetRow.logicalY;
+                 this.cursorX = targetRow.logicalXStart;
+            } else if (currentVisualRow < this.rowOffset) {
+                 // Should not happen when scrolling up (moving viewport up), unless cursor was already above?
+                 // If we scroll up, rowOffset decreases. Current row stays same. 
+                 // So current row > new rowOffset.
+                 // It might be > bottomEdge.
+            }
+            // However, to be safe against 'scroll' method resetting it:
+            // The 'scroll' method checks:
+            // if (currentVisualRow < this.rowOffset) -> this.rowOffset = currentVisualRow
+            // if (currentVisualRow >= this.rowOffset + this.screenRows) -> this.rowOffset = ...
+            
+            // So we MUST move cursor inside the new viewport.
+            
+            if (currentVisualRow > bottomEdge) {
+                const targetRow = this.visualRows[bottomEdge];
+                this.cursorY = targetRow.logicalY;
+                this.cursorX = targetRow.logicalXStart;
+            }
+
+        } else if (keyName === 'SCROLL_DOWN') {
+            const scrollAmount = 3;
+            const maxOffset = Math.max(0, this.visualRows.length - this.screenRows);
+            this.rowOffset = Math.min(maxOffset, this.rowOffset + scrollAmount);
+            
+            // Scroll DOWN means viewport index increases.
+            // Cursor might be ABOVE the new viewport (currentVisualRow < rowOffset).
+            const currentVisualRow = this.findCurrentVisualRowIndex();
+            
+            if (currentVisualRow < this.rowOffset) {
+                const targetRow = this.visualRows[this.rowOffset];
+                this.cursorY = targetRow.logicalY;
+                this.cursorX = targetRow.logicalXStart;
+            }
+        } else {
+            edited = this.handleEditKeys(keyName || ch);
+        }
     }
 
     // 6. Cập nhật Trạng thái và Render

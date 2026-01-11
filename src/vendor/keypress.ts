@@ -35,6 +35,7 @@ if (!listenerCount) {
 const metaKeyCodeRe = /^(?:\x1b)([a-zA-Z0-9])$/;
 const functionKeyCodeRe =
   /^(?:\x1b+)(O|N|\[|\[\[)(?:(\d+)(?:;(\d+))?([~^$])|(?:1;)?(\d+)?([a-zA-Z]))/;
+const mouseSgrRe = /^\x1b\[<(\d+);(\d+);(\d+)([mM])/;
 
 /**
  * Hàm chính, chấp nhận một Readable Stream và làm cho nó
@@ -281,7 +282,34 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
     return;
   }
 
-  // XXX: code phân tích "mouse" đã bị XÓA theo yêu cầu.
+  // Mouse handling (SGR 1006)
+  if ((parts = mouseSgrRe.exec(s))) {
+    // SGR Mode: \x1b[< b; x; y M/m
+    // b: button code
+    // x, y: coordinates (1-based)
+    // M/m: Press/Release
+
+    const b = parseInt(parts[1], 10);
+    const x = parseInt(parts[2], 10);
+    const y = parseInt(parts[3], 10);
+    const type = parts[4]; // M=press, m=release
+
+    key.name = 'mouse';
+    key.ctrl = false;
+    key.meta = false;
+    key.shift = false;
+    
+    // Check for Scroll (Button 64 = Up, 65 = Down)
+    if (b === 64) {
+        key.name = 'scrollup';
+        key.code = 'scrollup';
+    } else if (b === 65) {
+        key.name = 'scrolldown';
+        key.code = 'scrolldown';
+    } 
+    // We can handle click here if needed (b=0 left, b=1 middle, b=2 right)
+    // but for now only scroll is requested.
+  }
 
   // Không phát ra key nếu không tìm thấy tên
   if (key.name === undefined) {

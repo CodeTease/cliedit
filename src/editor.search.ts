@@ -35,12 +35,24 @@ function enterReplaceMode(this: CliEditor): void {
  */
 function executeSearch(this: CliEditor): void {
     this.searchResults = [];
+    this.searchResultMap.clear();
+
     if (this.searchQuery === '') return;
+    
+    const queryLen = this.searchQuery.length;
+
     for (let y = 0; y < this.lines.length; y++) {
       const line = this.lines[y];
       let index = -1;
+      const lineMatches: { start: number; end: number }[] = [];
+
       while ((index = line.indexOf(this.searchQuery, index + 1)) !== -1) {
         this.searchResults.push({ y, x: index });
+        lineMatches.push({ start: index, end: index + queryLen });
+      }
+
+      if (lineMatches.length > 0) {
+        this.searchResultMap.set(y, lineMatches);
       }
     }
     this.searchResultIndex = -1;
