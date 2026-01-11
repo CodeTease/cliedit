@@ -197,6 +197,15 @@ function jumpToResult(this: CliEditor, result: { y: number, x: number }): void {
     this.rowOffset = Math.max(0, visualRowIndex - Math.floor(this.screenRows / 2));
 }
 
+/**
+ * Clears the current search results and highlights.
+ */
+function clearSearchResults(this: CliEditor): void {
+    this.searchResults = [];
+    this.searchResultMap.clear();
+    this.searchResultIndex = -1;
+}
+
 export const searchMethods = {
     enterFindMode,
     enterReplaceMode,
@@ -205,4 +214,5 @@ export const searchMethods = {
     replaceCurrentAndFindNext,
     replaceAll,
     jumpToResult,
+    clearSearchResults,
 };

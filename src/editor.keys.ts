@@ -184,6 +184,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
 }
 
 function handleAltArrows(this: CliEditor, keyName: string): void {
+     this.clearSearchResults(); // Clear highlights on smart navigation
      if (keyName === 'ALT_LEFT') this.moveCursorByWord('left');
      else if (keyName === 'ALT_RIGHT') this.moveCursorByWord('right');
 }
@@ -201,6 +202,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
 
     if (isNavigation) {
         this.cancelSelection();
+        this.clearSearchResults(); // Clear highlights on navigation
         if (this.isMessageCustom) {
             this.setStatusMessage(this.DEFAULT_STATUS, 0);
         }
@@ -246,9 +248,11 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
 
         // --- Editing ---
         case KEYS.ENTER:
+            this.clearSearchResults();
             this.insertNewLine();
             return true;
         case KEYS.BACKSPACE:
+            this.clearSearchResults();
             // Handle auto-pair deletion
             const line = this.lines[this.cursorY] || '';
             const charBefore = line[this.cursorX - 1];
@@ -268,10 +272,12 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             }
             return true;
         case KEYS.DELETE:
+            this.clearSearchResults();
             if (this.selectionAnchor) this.deleteSelectedText();
             else this.deleteForward();
             return true;
         case KEYS.TAB:
+            this.clearSearchResults();
             this.insertSoftTab();
             return true;
 
@@ -332,6 +338,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
         // Xử lý Ký tự in được
         default:
             if (key.length === 1 && key >= ' ' && key <= '~') {
+                this.clearSearchResults();
                 this.handleCharacterKey(key);
                 return true; 
             }
