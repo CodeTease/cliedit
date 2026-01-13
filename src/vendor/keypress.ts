@@ -1,14 +1,14 @@
 // src/vendor/keypress.ts
-// Đây là phiên bản "vendored" của thư viện 'keypress' (0.2.1)
-// được chuyển đổi sang TypeScript và loại bỏ hỗ trợ chuột
-// để tích hợp trực tiếp vào cliedit.
+// This is a "vendored" version of the 'keypress' library (0.2.1)
+// converted to TypeScript and stripped of mouse support
+// to be integrated directly into cliedit.
 
 import { EventEmitter } from 'events';
 import { StringDecoder } from 'string_decoder';
 
 /**
- * Định nghĩa giao diện cho một sự kiện keypress.
- * Được điều chỉnh từ file editor.ts.
+ * Defines the interface for a keypress event.
+ * Adapted from the editor.ts file.
  */
 export interface KeypressEvent {
   name?: string;
@@ -20,7 +20,7 @@ export interface KeypressEvent {
 }
 
 /**
- * Hàm polyfill cho `EventEmitter.listenerCount()`, để tương thích ngược.
+ * Polyfill for `EventEmitter.listenerCount()`, for backward compatibility.
  */
 let listenerCount = EventEmitter.listenerCount;
 if (!listenerCount) {
@@ -30,7 +30,7 @@ if (!listenerCount) {
 }
 
 /**
- * Regexes dùng để phân tích escape code của ansi
+ * Regexes used to parse ansi escape codes.
  */
 const metaKeyCodeRe = /^(?:\x1b)([a-zA-Z0-9])$/;
 const functionKeyCodeRe =
@@ -38,13 +38,13 @@ const functionKeyCodeRe =
 const mouseSgrRe = /^\x1b\[<(\d+);(\d+);(\d+)([mM])/;
 
 /**
- * Hàm chính, chấp nhận một Readable Stream và làm cho nó
- * phát ra sự kiện "keypress".
+ * Main function, accepts a Readable Stream and makes it
+ * emit "keypress" events.
  */
 export default function keypress(stream: NodeJS.ReadStream): void {
   if (isEmittingKeypress(stream)) return;
 
-  // Gắn decoder vào stream để theo dõi
+  // Attach decoder to the stream to monitor data
   (stream as any)._keypressDecoder = new StringDecoder('utf8');
 
   function onData(b: Buffer): void {
@@ -52,7 +52,7 @@ export default function keypress(stream: NodeJS.ReadStream): void {
       const r = (stream as any)._keypressDecoder.write(b);
       if (r) emitKey(stream, r);
     } else {
-      // Không ai đang nghe, gỡ bỏ listener
+      // No one is listening, remove listener
       stream.removeListener('data', onData);
       stream.on('newListener', onNewListener);
     }
@@ -73,23 +73,23 @@ export default function keypress(stream: NodeJS.ReadStream): void {
 }
 
 /**
- * Kiểm tra xem stream đã phát ra sự kiện "keypress" hay chưa.
+ * Checks if the stream has already emitted the "keypress" event.
  */
 function isEmittingKeypress(stream: NodeJS.ReadStream): boolean {
   let rtn = !!(stream as any)._keypressDecoder;
   if (!rtn) {
-    // XXX: Đối với các phiên bản node cũ, chúng ta muốn xóa các
-    // listener "data" và "newListener" hiện có vì chúng sẽ không
-    // bao gồm các phần mở rộng của module này (như "mousepress" đã bị loại bỏ).
+    // XXX: For older node versions, we want to remove existing
+    // "data" and "newListener" listeners because they won't
+    // include extensions from this module (like "mousepress" which was removed).
     stream.listeners('data').slice(0).forEach(function (l) {
       if (l.name === 'onData' && /emitKey/.test(l.toString())) {
-        // FIX TS2769: Ép kiểu 'l' thành kiểu listener hợp lệ
+        // FIX TS2769: Cast 'l' to a valid listener type
         stream.removeListener('data', l as (...args: any[]) => void);
       }
     });
     stream.listeners('newListener').slice(0).forEach(function (l) {
       if (l.name === 'onNewListener' && /keypress/.test(l.toString())) {
-        // FIX TS2769: Ép kiểu 'l' thành kiểu listener hợp lệ
+        // FIX TS2769: Cast 'l' to a valid listener type
         stream.removeListener('newListener', l as (...args: any[]) => void);
       }
     });
@@ -98,8 +98,8 @@ function isEmittingKeypress(stream: NodeJS.ReadStream): boolean {
 }
 
 /**
- * Phần code bên dưới được lấy từ module `readline.js` của node-core
- * và đã được chuyển đổi sang TypeScript.
+ * The code below is taken from node-core's `readline.js` module
+ * and has been converted to TypeScript.
  */
 
 function emitKey(stream: NodeJS.ReadStream, s: string): void {
@@ -113,16 +113,16 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
   };
   let parts: RegExpExecArray | null;
 
-  // Cảnh báo: Block `Buffer.isBuffer(s)` đã bị loại bỏ.
-  // Lý do: `onData` luôn gọi `emitKey` với một string (kết quả từ StringDecoder).
-  // Block đệ quy (paste) cũng gọi với string.
-  // Vì vậy, `s` luôn là string.
+  // Warning: The `Buffer.isBuffer(s)` block has been removed.
+  // Reason: `onData` always calls `emitKey` with a string (result from StringDecoder).
+  // The recursive block (paste) also calls with a string.
+  // Therefore, `s` is always a string.
 
   if (s === '\r') {
     // carriage return
     key.name = 'return';
   } else if (s === '\n') {
-    // enter, đáng lẽ phải là linefeed
+    // enter, should have been linefeed
     key.name = 'enter';
   } else if (s === '\t') {
     // tab
@@ -133,7 +133,7 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
     s === '\x1b\x7f' ||
     s === '\x1b\b'
   ) {
-    // backspace hoặc ctrl+h
+    // backspace or ctrl+h
     key.name = 'backspace';
     key.meta = s.charAt(0) === '\x1b';
   } else if (s === '\x1b' || s === '\x1b\x1b') {
@@ -173,24 +173,24 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
   } else if ((parts = functionKeyCodeRe.exec(s))) {
     // ansi escape sequence
 
-    // Lắp ráp lại key code, bỏ qua \x1b đứng đầu,
-    // bitflag của phím bổ trợ và bất kỳ chuỗi "1;" vô nghĩa nào
+    // Reassemble key code, ignoring leading \x1b,
+    // modifier bitflag, and any meaningless "1;" strings
     const code =
       (parts[1] || '') +
       (parts[2] || '') +
       (parts[4] || '') +
       (parts[6] || '');
       
-    // FIX TS2362: Chuyển đổi (parts[...]) sang number bằng parseInt
+    // FIX TS2362: Convert (parts[...]) to number using parseInt
     const modifier = parseInt(parts[3] || parts[5] || '1', 10) - 1;
 
-    // Phân tích phím bổ trợ
+    // Parse modifier keys
     key.ctrl = !!(modifier & 4);
     key.meta = !!(modifier & 10);
     key.shift = !!(modifier & 1);
     key.code = code;
 
-    // Phân tích chính phím đó
+    // Parse the key itself
     switch (code) {
       /* xterm/gnome ESC O letter */
       case 'OP': key.name = 'f1'; break;
@@ -274,8 +274,8 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
       default: key.name = 'undefined'; break;
     }
   } else if (s.length > 1 && s[0] !== '\x1b') {
-    // Nhận được một chuỗi ký tự dài hơn một.
-    // Có thể là paste, vì nó không phải là control sequence.
+    // Received a string longer than one character.
+    // Could be a paste, since it's not a control sequence.
     for (const c of s) {
       emitKey(stream, c);
     }
@@ -311,7 +311,7 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
     // but for now only scroll is requested.
   }
 
-  // Không phát ra key nếu không tìm thấy tên
+  // Don't emit key if name is not found
   if (key.name === undefined) {
     return; // key = undefined;
   }
