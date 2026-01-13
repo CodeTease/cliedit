@@ -42,6 +42,7 @@ function insertContentAtCursor(this: CliEditor, contentLines: string[]): void {
         this.cursorX = lastPasteLine.length;
     }
     this.setDirty();
+    this.invalidateSyntaxCache();
     this.recalculateVisualRows();
 }
 
@@ -52,6 +53,7 @@ function insertCharacter(this: CliEditor, char: string): void {
     const line = this.lines[this.cursorY] || '';
     this.lines[this.cursorY] = line.slice(0, this.cursorX) + char + line.slice(this.cursorX);
     this.cursorX += char.length;
+    this.invalidateSyntaxCache();
 }
 
 /**
@@ -60,6 +62,7 @@ function insertCharacter(this: CliEditor, char: string): void {
 function insertSoftTab(this: CliEditor): void { 
     const spaces = ' '.repeat(this.tabSize || 4);
     this.insertCharacter(spaces); 
+    // invalidation handled in insertCharacter
 }
 
 /**
@@ -82,6 +85,7 @@ function insertNewLine(this: CliEditor): void {
     this.cursorY++;
     this.cursorX = indent.length; // Move cursor to end of indent
     this.setDirty();
+    this.invalidateSyntaxCache();
 }
 
 /**
@@ -104,6 +108,7 @@ function deleteBackward(this: CliEditor): void {
         this.lines = ['']; this.cursorY = 0; this.cursorX = 0;
     }
     this.setDirty();
+    this.invalidateSyntaxCache();
 }
 
 /**
@@ -122,6 +127,7 @@ function deleteForward(this: CliEditor): void {
         this.lines = ['']; this.cursorY = 0; this.cursorX = 0;
     }
     this.setDirty();
+    this.invalidateSyntaxCache();
 }
 
 /**

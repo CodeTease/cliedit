@@ -13,6 +13,11 @@ export const ANSI = {
   RESET_COLORS: '\x1b[0m', // Reset colors
   ENTER_ALTERNATE_SCREEN: '\x1b[?1049h', // Enter alternate screen
   EXIT_ALTERNATE_SCREEN: '\x1b[?1049l', // Exit alternate screen
+  
+  // Syntax Highlighting Colors
+  YELLOW: '\x1b[33m',
+  CYAN: '\x1b[36m',
+  GREEN: '\x1b[32m',
 };
 
 /**

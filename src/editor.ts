@@ -23,6 +23,7 @@ import { historyMethods } from './editor.history.js';
 import { ioMethods } from './editor.io.js';
 import { keyHandlingMethods, TKeyHandlingMethods } from './editor.keys.js'; 
 import { selectionMethods, TSelectionMethods, NormalizedRange } from './editor.selection.js'; 
+import { syntaxMethods } from './editor.syntax.js';
 
 // --- Interface Merging (For TypeScript) ---
 type TEditingMethods = typeof editingMethods;
@@ -32,6 +33,7 @@ type TRenderingMethods = typeof renderingMethods;
 type TSearchMethods = typeof searchMethods;
 type THistoryMethods = typeof historyMethods;
 type TIOMethods = typeof ioMethods;
+type TSyntaxMethods = typeof syntaxMethods;
 
 export interface CliEditor extends 
   TEditingMethods,
@@ -42,7 +44,8 @@ export interface CliEditor extends
   THistoryMethods,
   TIOMethods,
   TKeyHandlingMethods,
-  TSelectionMethods {}
+  TSelectionMethods,
+  TSyntaxMethods {}
 
 const DEFAULT_STATUS = 'HELP: Ctrl+S = Save | Ctrl+Q = Quit | Ctrl+W = Find | Ctrl+R = Replace | Ctrl+L = Go to Line';
 
@@ -77,6 +80,7 @@ export class CliEditor {
   // Map<lineNumber, Array<{ start, end }>> for fast rendering lookup
   public searchResultMap: Map<number, Array<{ start: number; end: number }>> = new Map();
   public searchResultIndex: number = -1;
+  public syntaxCache: Map<number, Map<number, string>> = new Map();
   public history: HistoryManager;
   public swapManager: SwapManager;
   public isCleanedUp: boolean = false; 
@@ -206,3 +210,4 @@ Object.assign(CliEditor.prototype, historyMethods);
 Object.assign(CliEditor.prototype, ioMethods);
 Object.assign(CliEditor.prototype, keyHandlingMethods);
 Object.assign(CliEditor.prototype, selectionMethods);
+Object.assign(CliEditor.prototype, syntaxMethods);

@@ -46,6 +46,7 @@ function undo(this: CliEditor): void {
     if (state) {
         this.loadState(state);
         this.setDirty();
+        this.invalidateSyntaxCache();
         this.setStatusMessage('Undo successful');
     }
     else {
@@ -61,6 +62,7 @@ function redo(this: CliEditor): void {
     if (state) {
         this.loadState(state);
         this.setDirty();
+        this.invalidateSyntaxCache();
         this.setStatusMessage('Redo successful');
     }
     else {

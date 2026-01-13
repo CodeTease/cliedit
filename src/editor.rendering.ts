@@ -77,6 +77,10 @@ function render(this: CliEditor): void {
 
         let lineContent = row.content;
         
+        // Retrieve syntax color map for the full logical line
+        // We pass the full line content because the scanner needs context
+        const syntaxColorMap = this.getLineSyntaxColor(row.logicalY, this.lines[row.logicalY]);
+
         // 2. Draw Content (Character by Character for selection/cursor)
         for (let i = 0; i < lineContent.length; i++) {
             const char = lineContent[i];
@@ -107,6 +111,9 @@ function render(this: CliEditor): void {
                 logicalX < (this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length)
             );
 
+            // Syntax highlight color
+            const syntaxColor = syntaxColorMap.get(logicalX);
+
             if (isSelected) {
                 buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
             } else if (isCursorPosition) {
@@ -118,6 +125,9 @@ function render(this: CliEditor): void {
             } else if (isGlobalSearchResult) {
                 // Global Match: Invert only
                 buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+            } else if (syntaxColor) {
+                // Apply syntax color
+                buffer += syntaxColor + char + ANSI.RESET_COLORS;
             }
             else {
                 buffer += char;
