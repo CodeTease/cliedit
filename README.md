@@ -14,6 +14,7 @@ It includes line wrapping, visual navigation, smart auto-indentation, undo/redo,
 - **Undo/Redo:** `Ctrl+Z` / `Ctrl+Y` for persistent history.
 - **Text Selection:** `Ctrl+Arrow` keys to select text.
 - **Clipboard Support:** `Ctrl+C` (Copy), `Ctrl+X` (Cut), `Ctrl+V` (Paste) for system clipboard (macOS, Windows, **and Linux** via `xclip`).
+- **Syntax Highlighting:** Lightweight highlighting for Brackets `()` `[]` `{}` and Strings `""` `''`.
 - **File I/O:** Loads from and saves to the filesystem.
 - **Search & Replace:** `Ctrl+W` to find text, `Ctrl+R` to find and replace interactively.
 - **Go to Line:** `Ctrl+L` to quickly jump to a specific line number.
@@ -23,7 +24,7 @@ It includes line wrapping, visual navigation, smart auto-indentation, undo/redo,
 - **Crash Recovery:** Automatically saves changes to a hidden swap file (e.g. `.filename.swp`) to prevent data loss.
 
 ## Installation
-```bash
+```shell
 npm install cliedit
 ````
 
@@ -31,7 +32,7 @@ npm install cliedit
 
 The package exports an `async` function `openEditor` that returns a `Promise`. The promise resolves when the user quits the editor.
 
-```javascript
+```typescript
 import { openEditor } from 'cliedit';
 import path from 'path';
 
@@ -64,7 +65,7 @@ getCommitMessage();
 
 `cliedit` supports standard input piping. When used in a pipeline, it reads the input content, then re-opens the TTY to allow interactive editing.
 
-```bash
+```shell
 # Edit a file using cat
 cat README.md | node my-app.js
 
@@ -101,7 +102,7 @@ If the process crashes or is terminated abruptly, the next time you open the fil
 
 The main editor class. You can import this directly if you need to extend or instantiate the editor with custom logic.
 
-```javascript
+```typescript
 import { CliEditor } from 'cliedit';
 ```
 
@@ -109,7 +110,7 @@ import { CliEditor } from 'cliedit';
 
 Key types are also exported for convenience:
 
-```javascript
+```typescript
 import type {
   DocumentState,
   VisualRow,
