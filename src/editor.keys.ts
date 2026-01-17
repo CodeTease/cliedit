@@ -83,9 +83,11 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else if (key.name === 'delete') keyName = KEYS.DELETE;
         else if (key.name === 'backspace') keyName = KEYS.BACKSPACE;
         else if (key.name === 'return') keyName = KEYS.ENTER;
-        else if (key.name === 'tab') keyName = KEYS.TAB;
+        else if (key.name === 'tab') keyName = key.shift ? KEYS.SHIFT_TAB : KEYS.TAB;
         else if (key.meta && key.name === 'left') keyName = 'ALT_LEFT';
         else if (key.meta && key.name === 'right') keyName = 'ALT_RIGHT';
+        else if (key.meta && key.name === 'up') keyName = KEYS.ALT_UP;
+        else if (key.meta && key.name === 'down') keyName = KEYS.ALT_DOWN;
         // Handle Mouse Scroll events explicitly
         else if (key.name === 'scrollup') keyName = 'SCROLL_UP';
         else if (key.name === 'scrolldown') keyName = 'SCROLL_DOWN';
@@ -278,8 +280,29 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             return true;
         case KEYS.TAB:
             this.clearSearchResults();
-            this.insertSoftTab();
-            return true;
+            if (this.selectionAnchor) {
+                this.indentSelection();
+                return false; // Manually saved state
+            } else {
+                this.insertSoftTab();
+                return true;
+            }
+        case KEYS.SHIFT_TAB:
+            this.clearSearchResults();
+            this.outdentSelection();
+            return false; // Manually saved state
+        case KEYS.ALT_UP:
+            this.clearSearchResults();
+            this.moveLines(-1);
+            return false; // Manually saved state
+        case KEYS.ALT_DOWN:
+            this.clearSearchResults();
+            this.moveLines(1);
+            return false; // Manually saved state
+        case KEYS.CTRL_D:
+            this.clearSearchResults();
+            this.duplicateLineOrSelection();
+            return false; // Manually saved state
 
         // --- Search & History ---
         case KEYS.CTRL_W:

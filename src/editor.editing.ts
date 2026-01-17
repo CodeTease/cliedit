@@ -163,6 +163,144 @@ function handleAutoPair(this: CliEditor, openChar: string, closeChar: string): v
     this.setDirty();
 }
 
+/**
+ * Indents the selected lines (Block Indentation).
+ */
+function indentSelection(this: CliEditor): void {
+    this.saveState(); // Save state before modification for Undo
+    const selection = this.getNormalizedSelection();
+    if (!selection) return;
+
+    for (let i = selection.start.y; i <= selection.end.y; i++) {
+        const line = this.lines[i];
+        this.lines[i] = ' '.repeat(this.tabSize) + line;
+    }
+    
+    // Adjust selection anchors
+    if (this.selectionAnchor) {
+        this.selectionAnchor.x += this.tabSize;
+        this.cursorX += this.tabSize;
+    }
+    
+    this.setDirty();
+    this.invalidateSyntaxCache();
+    this.recalculateVisualRows();
+}
+
+/**
+ * Outdents the selected lines (Block Outdent).
+ */
+function outdentSelection(this: CliEditor): void {
+    this.saveState(); // Save state before modification for Undo
+    // If no selection, try to outdent current line
+    let startY = this.cursorY;
+    let endY = this.cursorY;
+    
+    if (this.selectionAnchor) {
+        const selection = this.getNormalizedSelection();
+        if (selection) {
+            startY = selection.start.y;
+            endY = selection.end.y;
+        }
+    }
+    
+    let changed = false;
+    for (let i = startY; i <= endY; i++) {
+        const line = this.lines[i];
+        // Remove up to tabSize spaces
+        const match = line.match(/^(\s+)/);
+        if (match) {
+             const spaces = match[1].length;
+             const toRemove = Math.min(spaces, this.tabSize);
+             this.lines[i] = line.slice(toRemove);
+             changed = true;
+        }
+    }
+    
+    if (changed) {
+         if (this.selectionAnchor) {
+             // Approximation: shift anchor and cursor left
+             this.selectionAnchor.x = Math.max(0, this.selectionAnchor.x - this.tabSize);
+             this.cursorX = Math.max(0, this.cursorX - this.tabSize);
+         } else {
+             this.cursorX = Math.max(0, this.cursorX - this.tabSize);
+         }
+         this.setDirty();
+         this.invalidateSyntaxCache();
+         this.recalculateVisualRows();
+    }
+}
+
+/**
+ * Moves the current line or selection up or down.
+ * @param direction -1 for Up, 1 for Down
+ */
+function moveLines(this: CliEditor, direction: -1 | 1): void {
+    this.saveState(); // Save state before modification for Undo
+    let startY = this.cursorY;
+    let endY = this.cursorY;
+    
+    if (this.selectionAnchor) {
+        const selection = this.getNormalizedSelection();
+        if (selection) {
+            startY = selection.start.y;
+            endY = selection.end.y;
+        }
+    }
+    
+    // Boundary checks
+    if (direction === -1 && startY === 0) return; // Top
+    if (direction === 1 && endY >= this.lines.length - 1) return; // Bottom
+    
+    // Extract lines to move
+    const count = endY - startY + 1;
+    const linesToMove = this.lines.splice(startY, count);
+    
+    // Insert at new position
+    const newStart = startY + direction;
+    this.lines.splice(newStart, 0, ...linesToMove);
+    
+    // Update selection/cursor
+    this.cursorY += direction;
+    if (this.selectionAnchor) {
+        this.selectionAnchor.y += direction;
+    }
+    
+    this.setDirty();
+    this.recalculateVisualRows();
+}
+
+/**
+ * Duplicates the current line or selection.
+ */
+function duplicateLineOrSelection(this: CliEditor): void {
+    this.saveState(); // Save state before modification for Undo
+    if (this.selectionAnchor) {
+        const selection = this.getNormalizedSelection();
+        if (!selection) return;
+        
+        const text = this.getSelectedText();
+        
+        // We need to move cursor to end of selection.
+        // Normalized selection end:
+        this.cursorX = selection.end.x;
+        this.cursorY = selection.end.y;
+        
+        const contentLines = text.split('\n');
+        this.insertContentAtCursor(contentLines);
+        
+    } else {
+        // Single line duplication
+        const line = this.lines[this.cursorY];
+        this.lines.splice(this.cursorY + 1, 0, line);
+        this.cursorY++; // Move down to the new line
+        // CursorX stays same? Usually yes.
+    }
+    
+    this.setDirty();
+    this.recalculateVisualRows();
+}
+
 
 export const editingMethods = {
     insertContentAtCursor,
@@ -172,4 +310,8 @@ export const editingMethods = {
     deleteBackward,
     deleteForward,
     handleAutoPair,
+    indentSelection,
+    outdentSelection,
+    moveLines,
+    duplicateLineOrSelection,
 };

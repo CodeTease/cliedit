@@ -19,7 +19,10 @@ It includes line wrapping, visual navigation, smart auto-indentation, undo/redo,
 - **Search & Replace:** `Ctrl+W` to find text, `Ctrl+R` to find and replace interactively.
 - **Go to Line:** `Ctrl+L` to quickly jump to a specific line number.
 - **Smart Auto-Indentation:** Automatically preserves indentation level when pressing Enter.
+- **Block Indentation:** Use `Tab` / `Shift+Tab` to indent or outdent selected blocks of text.
 - **Smart Navigation:** `Alt + Left/Right` to jump by words, `Ctrl + M` to jump between matching brackets.
+- **Line Moving:** `Alt + Up/Down` to move the current line or selection up and down.
+- **Line Duplication:** `Ctrl+D` to duplicate the current line or selection.
 - **Piping Support:** Works with standard Unix pipes (e.g. `cat file.txt | cliedit`).
 - **Crash Recovery:** Automatically saves changes to a hidden swap file (e.g. `.filename.swp`) to prevent data loss.
 

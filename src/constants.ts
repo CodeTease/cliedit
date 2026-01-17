@@ -62,4 +62,8 @@ export const KEYS = {
   PAGE_UP: 'pageup',
   PAGE_DOWN: 'pagedown',
   TAB: '\t',
+  SHIFT_TAB: 'SHIFT_TAB', // Internal representation
+  ALT_UP: 'ALT_UP',       // Internal representation
+  ALT_DOWN: 'ALT_DOWN',   // Internal representation
+  CTRL_D: '\x04',
 };
