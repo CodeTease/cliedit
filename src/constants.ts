@@ -11,6 +11,7 @@ export const ANSI = {
   SHOW_CURSOR: '\x1b[?25h', // Show cursor
   INVERT_COLORS: '\x1b[7m', // Invert background/foreground colors
   RESET_COLORS: '\x1b[0m', // Reset colors
+  DIM: '\x1b[2m', // Dim mode (faint)
   ENTER_ALTERNATE_SCREEN: '\x1b[?1049h', // Enter alternate screen
   EXIT_ALTERNATE_SCREEN: '\x1b[?1049l', // Exit alternate screen
   

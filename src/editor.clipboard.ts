@@ -20,7 +20,7 @@ function setClipboard(this: CliEditor, text: string): Promise<void> {
         case 'win32': 
             command = 'clip'; 
             break;
-        case 'linux': // <--- THÊM HỖ TRỢ LINUX
+        case 'linux': 
             command = 'xclip -selection clipboard';
             break;
         default:
@@ -52,8 +52,8 @@ function getClipboard(this: CliEditor): Promise<string> {
         case 'win32': 
             command = 'powershell -command "Get-Clipboard"'; 
             break;
-        case 'linux': // <--- THÊM HỖ TRỢ LINUX
-            command = 'xclip -selection clipboard -o'; // -o (hoặc -out) để đọc
+        case 'linux': 
+            command = 'xclip -selection clipboard -o'; 
             break;
         default:
           this.setStatusMessage('Clipboard not supported on this platform');

@@ -1,16 +1,7 @@
 
 // src/editor.syntax.ts
 import { CliEditor } from './editor.js';
-import { ANSI } from './constants.js';
-
-// Syntax colors
-const COLOR_BRACKET_1 = ANSI.YELLOW;
-const COLOR_STRING = ANSI.GREEN;
-
-// State constants
-const STATE_NORMAL = 0;
-const STATE_IN_STRING_SINGLE = 1; // '
-const STATE_IN_STRING_DOUBLE = 2; // "
+import { parseLineSyntax } from './syntax.common.js';
 
 /**
  * Single-pass character scanner to generate a color map for a line.
@@ -22,56 +13,34 @@ function getLineSyntaxColor(this: CliEditor, lineIndex: number, lineContent: str
         return this.syntaxCache.get(lineIndex)!;
     }
 
-    const colorMap = new Map<number, string>();
-    let state = STATE_NORMAL;
+    // Request async syntax highlight
+    // But for the FIRST render, we return empty map to not block.
+    // We send message to worker.
     
-    for (let i = 0; i < lineContent.length; i++) {
-        const char = lineContent[i];
+    // However, if we don't have a worker yet (or if worker is disabled), we might want to fallback?
+    // Assuming worker is always available as per plan.
+    
+    if (this.syntaxWorker) {
+        this.syntaxWorker.postMessage({ lineIndex, content: lineContent });
         
-        if (state === STATE_NORMAL) {
-            if (char === '"') {
-                state = STATE_IN_STRING_DOUBLE;
-                colorMap.set(i, COLOR_STRING);
-            } else if (char === "'") {
-                state = STATE_IN_STRING_SINGLE;
-                colorMap.set(i, COLOR_STRING);
-            } else if ('()[]{}'.includes(char)) {
-                // Alternate bracket colors for fun, or just use one
-                colorMap.set(i, COLOR_BRACKET_1);
-            }
-        } else if (state === STATE_IN_STRING_DOUBLE) {
-            colorMap.set(i, COLOR_STRING);
-            if (char === '"') {
-                // Check if escaped
-                let backslashCount = 0;
-                for (let j = i - 1; j >= 0; j--) {
-                    if (lineContent[j] === '\\') backslashCount++;
-                    else break;
-                }
-                // Even backslashes => not escaped (e.g., \\" is literal backslash then quote)
-                // Odd backslashes => escaped (e.g., \" is literal quote)
-                if (backslashCount % 2 === 0) {
-                    state = STATE_NORMAL;
-                }
-            }
-        } else if (state === STATE_IN_STRING_SINGLE) {
-            colorMap.set(i, COLOR_STRING);
-            if (char === "'") {
-                // Check if escaped
-                let backslashCount = 0;
-                for (let j = i - 1; j >= 0; j--) {
-                    if (lineContent[j] === '\\') backslashCount++;
-                    else break;
-                }
-                if (backslashCount % 2 === 0) {
-                    state = STATE_NORMAL;
-                }
-            }
-        }
+        // Mark as "pending" in cache to avoid spamming the worker?
+        // Let's use an empty map as pending state.
+        // But if we cache empty map, we won't re-request?
+        // We need a way to know if it's pending.
+        // Let's NOT cache the empty map.
+        // But render() calls this every frame.
+        // If we don't cache, we spam postMessage.
+        // So we cache an empty map, but we need to know it's a "temporary" empty map.
+        // For simplicity: Cache the empty map. When worker replies, it overwrites.
+        const empty = new Map<number, string>();
+        this.syntaxCache.set(lineIndex, empty);
+        return empty;
+    } else {
+        // Fallback for tests or no-worker env: Synchronous
+        const map = parseLineSyntax(lineContent);
+        this.syntaxCache.set(lineIndex, map);
+        return map;
     }
-
-    this.syntaxCache.set(lineIndex, colorMap);
-    return colorMap;
 }
 
 /**

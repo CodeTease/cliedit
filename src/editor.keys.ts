@@ -12,7 +12,6 @@ const PAIR_MAP: Record<string, string> = {
 };
 import type { KeypressEvent } from './vendor/keypress.js';
 
-// (FIX TS2339 & TS2724) Export all function types for merging
 export type TKeyHandlingMethods = {
     handleKeypressEvent: (ch: string, key: KeypressEvent) => void;
     handleEditKeys: (key: string) => boolean;
@@ -31,7 +30,6 @@ export type TKeyHandlingMethods = {
  * Main router for standardized keypress events from the 'keypress' library.
  */
 function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): void {
-    // CRASH FIX: If the editor is already closing, ignore all input.
     if (this.isExiting) {
         return;
     }
@@ -39,7 +37,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     let keyName: string | undefined = undefined;
     let edited = false; 
 
-    // --- 1. Xử lý trường hợp key là null/undefined (Ký tự in được) ---
+    // --- 1. Handle the case where key is null/undefined (Printable characters) ---
     if (!key) {
         if (ch && ch.length === 1 && ch >= ' ' && ch <= '~') {
             if (this.mode === 'search_find' || this.mode === 'search_replace') {
@@ -60,9 +58,9 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         return; 
     }
     
-    // --- 2. Từ đây, 'key' object là đảm bảo có (phím đặc biệt hoặc Ctrl/Meta) ---
+    // --- 2. From here, the 'key' object is guaranteed to exist (special keys or Ctrl/Meta) ---
 
-    // 2.1. Ánh xạ Control sequences (Ctrl+Arrow cho selection)
+    // 2.1. Map Control sequences (Ctrl+Arrow for selection)
     if (key.ctrl) {
         if (key.name === 'up') keyName = KEYS.CTRL_ARROW_UP;
         else if (key.name === 'down') keyName = KEYS.CTRL_ARROW_DOWN;
@@ -70,7 +68,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else if (key.name === 'right') keyName = KEYS.CTRL_ARROW_RIGHT;
         else keyName = key.sequence; 
     } else {
-        // 2.2. Ánh xạ phím tiêu chuẩn (Arrow, Home, End, Enter, Tab)
+        // 2.2. Map standard keys (Arrow, Home, End, Enter, Tab)
         if (key.name === 'up') keyName = KEYS.ARROW_UP;
         else if (key.name === 'down') keyName = KEYS.ARROW_DOWN;
         else if (key.name === 'left') keyName = KEYS.ARROW_LEFT;
@@ -93,7 +91,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else keyName = key.sequence; 
     }
 
-    // --- 3. Định tuyến theo Mode ---
+    // --- 3. Route according to Mode ---
     if (this.mode === 'search_find' || this.mode === 'search_replace') {
         this.handleSearchKeys(keyName || ch);
     } else if (this.mode === 'search_confirm') {
@@ -101,7 +99,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     } else if (this.mode === 'goto_line') {
         this.handleGoToLineKeys(keyName || ch);
     } else {
-        // 4. Xử lý phím lựa chọn (Ctrl+Arrow) - Navigation
+        // 4. Handle selection keys (Ctrl+Arrow) - Navigation
         switch (keyName) {
             case KEYS.CTRL_ARROW_UP:
             case KEYS.CTRL_ARROW_DOWN:
@@ -116,14 +114,14 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
                 return;
         }
 
-        // 5. Xử lý tất cả các phím lệnh/chỉnh sửa khác
+        // 5. Handle all other command/edit keys
         if (keyName === 'SCROLL_UP') {
             const scrollAmount = 3;
             this.rowOffset = Math.max(0, this.rowOffset - scrollAmount);
             
             // Adjust cursor if it falls out of view (below the viewport)
             // Actually if we scroll UP, the viewport moves UP. The cursor might be BELOW the viewport.
-            // Wait, scroll UP means viewing lines ABOVE. Viewport index decreases.
+            // scroll UP means viewing lines ABOVE. Viewport index decreases.
             // Cursor (if previously in view) might now be >= rowOffset + screenRows.
             
             // We need to ensure cursor is within [rowOffset, rowOffset + screenRows - 1]
@@ -188,13 +186,13 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         }
     }
 
-    // 6. Cập nhật Trạng thái và Render
+    // 6. Update State and Render
     if (edited) {
-        this.saveState(); // <-- Chỉ gọi khi gõ phím, xóa, v.v.
+        this.saveState(); // <-- Called only when typing, deleting, etc.
     }
 
     if (!this.isExiting) {
-        this.render(); // Render cuối cùng (với visual rows đã được cập nhật nếu cần)
+        this.render(); // Final render (with visual rows updated if necessary)
     }
 }
 
@@ -346,8 +344,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             this.matchBracket();
             return false;
             
-        // ***** SỬA LỖI VISUAL *****
-        // Sau khi undo/redo, chúng ta PHẢI tính toán lại visual rows
+        // After undo/redo, we MUST recalculate visual rows
         case KEYS.CTRL_Z:
             this.undo();
             return false; 
@@ -369,7 +366,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             this.pasteSelection();
             return true;
 
-        // Xử lý Ký tự in được
+        // Handle Printable Characters
         default:
             if (key.length === 1 && key >= ' ' && key <= '~') {
                 this.clearSearchResults();
