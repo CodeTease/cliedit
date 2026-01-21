@@ -4,7 +4,7 @@ import { promises as fs } from 'fs';
 import keypress from './vendor/keypress.js'; 
 import { ANSI, KEYS } from './constants.js';
 import { HistoryManager } from './history.js';
-import { DocumentState, VisualRow, EditorMode, EditorOptions } from './types.js';
+import { DocumentState, EditorMode, EditorOptions } from './types.js';
 import { SwapManager } from './editor.swap.js';
 
 // --- LOCAL TS DECLARATION (FIX TS7016/TS2306) ---
@@ -66,7 +66,6 @@ export class CliEditor {
   public gutterWidth: number = 5;
   public tabSize: number = 4;
   public screenStartRow: number = 1;
-  public visualRows: VisualRow[] = [];
   public mode: EditorMode = 'edit';
   public statusMessage: string = DEFAULT_STATUS;
   public statusTimeout: NodeJS.Timeout | null = null;
@@ -168,7 +167,6 @@ export class CliEditor {
     }
 
     this.updateScreenSize();
-    this.recalculateVisualRows();
 
     // Enter alternate screen and hide cursor + Enable SGR Mouse (1006) and Button Event (1000)
     process.stdout.write(ANSI.ENTER_ALTERNATE_SCREEN + ANSI.HIDE_CURSOR + ANSI.CLEAR_SCREEN + '\x1b[?1000h' + '\x1b[?1006h');
@@ -187,7 +185,6 @@ export class CliEditor {
 
   private handleResize(this: CliEditor): void {
     this.updateScreenSize();
-    this.recalculateVisualRows();
     this.render();
   }
 

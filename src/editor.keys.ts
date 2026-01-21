@@ -50,7 +50,6 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
                 edited = this.handleEditKeys(ch);
                 if (edited) {
                     this.saveState(); 
-                    this.recalculateVisualRows(); // Phải tính toán lại sau khi gõ
                 }
             } else if (this.mode === 'search_confirm') {
                 this.handleSearchConfirmKeys(ch);
@@ -133,9 +132,14 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
             const bottomEdge = this.rowOffset + this.screenRows - 1;
             
             if (currentVisualRow > bottomEdge) {
-                 const targetRow = this.visualRows[bottomEdge];
-                 this.cursorY = targetRow.logicalY;
-                 this.cursorX = targetRow.logicalXStart;
+                 // Move cursor to bottom edge
+                 // Need logic to move cursor to visual row 'bottomEdge'
+                 // Use getLogicalFromVisual
+                 const targetPos = this.getLogicalFromVisual(bottomEdge);
+                 this.cursorY = targetPos.logicalY;
+                 // Set to start of that chunk
+                 const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+                 this.cursorX = targetPos.visualYOffset * contentWidth;
             } else if (currentVisualRow < this.rowOffset) {
                  // Should not happen when scrolling up (moving viewport up), unless cursor was already above?
                  // If we scroll up, rowOffset decreases. Current row stays same. 
@@ -150,14 +154,23 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
             // So we MUST move cursor inside the new viewport.
             
             if (currentVisualRow > bottomEdge) {
-                const targetRow = this.visualRows[bottomEdge];
-                this.cursorY = targetRow.logicalY;
-                this.cursorX = targetRow.logicalXStart;
+                const targetPos = this.getLogicalFromVisual(bottomEdge);
+                this.cursorY = targetPos.logicalY;
+                const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+                this.cursorX = targetPos.visualYOffset * contentWidth;
             }
 
         } else if (keyName === 'SCROLL_DOWN') {
             const scrollAmount = 3;
-            const maxOffset = Math.max(0, this.visualRows.length - this.screenRows);
+            // Need total visual rows to clamp maxOffset.
+            // Calculating total visual rows is O(N).
+            // Let's do a safe scroll? 
+            // Or just allow scrolling until end?
+            // Let's calculate total visual rows for now (performance cost accepted for correct scrolling).
+            let totalVisualRows = 0;
+            for(let i=0; i<this.lines.length; i++) totalVisualRows += this.getLineVisualHeight(i);
+
+            const maxOffset = Math.max(0, totalVisualRows - this.screenRows);
             this.rowOffset = Math.min(maxOffset, this.rowOffset + scrollAmount);
             
             // Scroll DOWN means viewport index increases.
@@ -165,9 +178,10 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
             const currentVisualRow = this.findCurrentVisualRowIndex();
             
             if (currentVisualRow < this.rowOffset) {
-                const targetRow = this.visualRows[this.rowOffset];
-                this.cursorY = targetRow.logicalY;
-                this.cursorX = targetRow.logicalXStart;
+                const targetPos = this.getLogicalFromVisual(this.rowOffset);
+                this.cursorY = targetPos.logicalY;
+                const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+                this.cursorX = targetPos.visualYOffset * contentWidth;
             }
         } else {
             edited = this.handleEditKeys(keyName || ch);
@@ -177,7 +191,6 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     // 6. Cập nhật Trạng thái và Render
     if (edited) {
         this.saveState(); // <-- Chỉ gọi khi gõ phím, xóa, v.v.
-        this.recalculateVisualRows(); // Tính toán lại layout
     }
 
     if (!this.isExiting) {
@@ -337,11 +350,9 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
         // Sau khi undo/redo, chúng ta PHẢI tính toán lại visual rows
         case KEYS.CTRL_Z:
             this.undo();
-            this.recalculateVisualRows(); // <-- THÊM DÒNG NÀY
             return false; 
         case KEYS.CTRL_Y:
             this.redo();
-            this.recalculateVisualRows(); // <-- THÊM DÒNG NÀY
             return false; 
 
         // --- Clipboard ---

@@ -8,28 +8,46 @@ import { ANSI } from './constants.js';
  */
 
 /**
- * Recalculates the entire visual layout of the document based on screen width (line wrapping).
+ * Calculates how many visual rows a logical line occupies.
+ * @param lineIndex The index of the logical line.
  */
-function recalculateVisualRows(this: CliEditor): void {
-    this.visualRows = [];
-    // Calculate content width excluding gutter
+function getLineVisualHeight(this: CliEditor, lineIndex: number): number {
+    const line = this.lines[lineIndex];
+    if (line === undefined) return 1;
+    // Empty line takes 1 row
+    if (line.length === 0) return 1;
+    
     const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+    return Math.ceil(line.length / contentWidth);
+}
 
-    for (let y = 0; y < this.lines.length; y++) {
-      const line = this.lines[y];
-      if (line.length === 0) {
-        // Handle empty line case
-        this.visualRows.push({ logicalY: y, logicalXStart: 0, content: '' });
-      } else {
-        let x = 0;
-        // Chunk the line content based on contentWidth
-        while (x < line.length) {
-          const chunk = line.substring(x, x + contentWidth);
-          this.visualRows.push({ logicalY: y, logicalXStart: x, content: chunk });
-          x += contentWidth;
+/**
+ * Maps a global visual row index to its corresponding logical line and offset.
+ * Note: This is O(N) where N is the number of logical lines.
+ * Optimization: For very large files, this would need a tree structure.
+ * 
+ * @param visualY The global visual row index (0-based).
+ * @returns Object containing logicalY and the visual offset within that line.
+ */
+function getLogicalFromVisual(this: CliEditor, visualY: number): { logicalY: number; visualYOffset: number } {
+    let currentVisualY = 0;
+    
+    for (let i = 0; i < this.lines.length; i++) {
+        const height = this.getLineVisualHeight(i);
+        if (currentVisualY + height > visualY) {
+            return {
+                logicalY: i,
+                visualYOffset: visualY - currentVisualY
+            };
         }
-      }
+        currentVisualY += height;
     }
+    
+    // If out of bounds, return the last line's end
+    return { 
+        logicalY: this.lines.length - 1, 
+        visualYOffset: Math.max(0, this.getLineVisualHeight(this.lines.length - 1) - 1)
+    };
 }
 
 /**
@@ -41,117 +59,150 @@ function render(this: CliEditor): void {
 
     let buffer = ANSI.MOVE_CURSOR_TOP_LEFT;
     
+    // Calculate current visual cursor position
     const currentVisualRowIndex = this.findCurrentVisualRowIndex();
-    const cursorVisualRow = this.visualRows[currentVisualRowIndex];
-    const cursorVisualX = cursorVisualRow ? (this.cursorX - cursorVisualRow.logicalXStart) : 0;
     
-    // Determine where the physical cursor should be placed
-    const displayX = cursorVisualX + this.gutterWidth;
-    const displayY = this.screenStartRow + (currentVisualRowIndex - this.rowOffset); 
+    // We need to calculate the cursor's visual X on the fly
+    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+    
+    // Find the starting logical line and offset based on rowOffset (which is visual)
+    const startPos = this.getLogicalFromVisual(this.rowOffset);
+    let logicalY = startPos.logicalY;
+    // visualOffsetInLine is how many *visual rows* into the logical line we are.
+    // e.g. if line wraps to 3 rows, and we are at offset 1, we start rendering from the 2nd chunk.
+    let visualOffsetInLine = startPos.visualYOffset;
+
+    let visualRowsRendered = 0;
     
     const selectionRange = this.getNormalizedSelection();
 
-    // Scrollbar calculations
-    const totalLines = this.visualRows.length;
-    const showScrollbar = totalLines > this.screenRows;
+    // Scrollbar calculations (Approximation for performance)
+    // Calculating exact total visual lines is O(N), expensive for scrollbar every frame.
+    // Workaround: Use logical lines for scrollbar scaling?
+    // User plan: "Chấp nhận scrollbar chỉ hiển thị tương đối theo Logical Lines"
+    // BUT rowOffset is visual. Mixing units is bad.
+    // Let's try to estimate total visual lines = lines.length * (average width / screen width)?
+    // For now, let's use logical mapping for scrollbar or just O(N) if file is small.
+    // Given the prompt "High Risk", let's assume we skip precise scrollbar or do a quick estimate.
+    // Let's use logical line ratio for scrollbar thumb position.
+    
+    const totalLines = this.lines.length;
+    // Map rowOffset (visual) back to logical for scrollbar positioning
+    const startLogicalY = startPos.logicalY; 
+    const showScrollbar = totalLines > this.screenRows; // Approximate check
     const thumbHeight = showScrollbar ? Math.max(1, Math.floor((this.screenRows / totalLines) * this.screenRows)) : 0;
-    const thumbStart = showScrollbar ? Math.floor((this.rowOffset / totalLines) * this.screenRows) : 0;
+    const thumbStart = showScrollbar ? Math.floor((startLogicalY / totalLines) * this.screenRows) : 0;
 
-    // Draw visual rows
-    for (let y = 0; y < this.screenRows; y++) {
-      const visualRowIndex = y + this.rowOffset;
-      // Move to start of the row
-      buffer += `\x1b[${this.screenStartRow + y};1H`; 
-      
-      if (visualRowIndex >= this.visualRows.length) {
-        // Draw Tilde for lines past file end
-        buffer += `~ ${ANSI.CLEAR_LINE}`;
-      } else {
-        const row = this.visualRows[visualRowIndex];
-        
-        // 1. Draw Gutter (Line Number)
-        const lineNumber = (row.logicalXStart === 0) 
-          ? `${row.logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
-          : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
-        buffer += lineNumber;
+    // Render Loop
+    while (visualRowsRendered < this.screenRows) {
+        // Stop if we run out of content
+        if (logicalY >= this.lines.length) {
+            // Fill remaining screen with tildes
+            buffer += `\x1b[${this.screenStartRow + visualRowsRendered};1H`; 
+            buffer += `~ ${ANSI.CLEAR_LINE}`;
+            visualRowsRendered++;
+            continue;
+        }
 
-        let lineContent = row.content;
-        
-        // Retrieve syntax color map for the full logical line
-        // We pass the full line content because the scanner needs context
-        const syntaxColorMap = this.getLineSyntaxColor(row.logicalY, this.lines[row.logicalY]);
+        const line = this.lines[logicalY];
+        const lineVisualHeight = this.getLineVisualHeight(logicalY);
 
-        // 2. Draw Content (Character by Character for selection/cursor)
-        for (let i = 0; i < lineContent.length; i++) {
-            const char = lineContent[i];
-            const logicalX = row.logicalXStart + i;
-            const logicalY = row.logicalY;
+        // Render chunks for this logical line starting from visualOffsetInLine
+        for (let v = visualOffsetInLine; v < lineVisualHeight && visualRowsRendered < this.screenRows; v++) {
+            buffer += `\x1b[${this.screenStartRow + visualRowsRendered};1H`; 
             
-            const isCursorPosition = (visualRowIndex === currentVisualRowIndex && i === cursorVisualX);
-            const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
+            // Calculate slice of string
+            const chunkStart = v * contentWidth;
+            const chunkEnd = Math.min(chunkStart + contentWidth, line.length);
+            // Handle empty line case
+            const chunk = (line.length === 0 && v === 0) ? '' : line.substring(chunkStart, chunkEnd);
             
-            // Highlight search result under cursor
-            // Check if this character is part of ANY search result
-            let isGlobalSearchResult = false;
-            if (this.searchResultMap.has(logicalY)) {
-                const matches = this.searchResultMap.get(logicalY)!;
-                for (const match of matches) {
-                    if (logicalX >= match.start && logicalX < match.end) {
-                        isGlobalSearchResult = true;
-                        break;
+            // 1. Draw Gutter
+            // Only draw number on the first visual row of the logical line
+            const lineNumber = (v === 0) 
+              ? `${logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
+              : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
+            buffer += lineNumber;
+
+            // 2. Syntax Highlighting & Char Rendering
+            const syntaxColorMap = this.getLineSyntaxColor(logicalY, line);
+            
+            for (let i = 0; i < chunk.length; i++) {
+                const char = chunk[i];
+                const logicalX = chunkStart + i;
+                
+                // Check Cursor
+                // Cursor is at logicalY, this.cursorX.
+                // Is this visual row the one containing the cursor?
+                const isCursorRow = (logicalY === this.cursorY) && 
+                                    (logicalX >= chunkStart && logicalX < chunkStart + contentWidth);
+                
+                // The visual cursor is at (cursorX - chunkStart) inside this chunk.
+                const isCursorPosition = (logicalY === this.cursorY) && (logicalX === this.cursorX);
+
+                const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
+                
+                // Highlight search result
+                let isGlobalSearchResult = false;
+                if (this.searchResultMap.has(logicalY)) {
+                    const matches = this.searchResultMap.get(logicalY)!;
+                    for (const match of matches) {
+                        if (logicalX >= match.start && logicalX < match.end) {
+                            isGlobalSearchResult = true;
+                            break;
+                        }
                     }
+                }
+
+                const isCurrentSearchResult = (
+                    this.searchResultIndex !== -1 &&
+                    this.searchResults[this.searchResultIndex]?.y === logicalY &&
+                    logicalX >= this.searchResults[this.searchResultIndex]?.x &&
+                    logicalX < (this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length)
+                );
+
+                const syntaxColor = syntaxColorMap.get(logicalX);
+
+                if (isSelected) {
+                    buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+                } else if (isCursorPosition) {
+                     buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+                } else if (isCurrentSearchResult) {
+                    buffer += ANSI.INVERT_COLORS + '\x1b[4m' + char + ANSI.RESET_COLORS;
+                } else if (isGlobalSearchResult) {
+                    buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+                } else if (syntaxColor) {
+                    buffer += syntaxColor + char + ANSI.RESET_COLORS;
+                }
+                else {
+                    buffer += char;
                 }
             }
 
-            // Check if this character is part of the CURRENTLY SELECTED search result
-            const isCurrentSearchResult = (
-                this.searchResultIndex !== -1 &&
-                this.searchResults[this.searchResultIndex]?.y === logicalY &&
-                logicalX >= this.searchResults[this.searchResultIndex]?.x &&
-                logicalX < (this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length)
-            );
-
-            // Syntax highlight color
-            const syntaxColor = syntaxColorMap.get(logicalX);
-
-            if (isSelected) {
-                buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
-            } else if (isCursorPosition) {
-                 // Cursor is a single inverted character if not already covered by selection
-                 buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
-            } else if (isCurrentSearchResult) {
-                // Selected Match: Invert + Underline (if supported) or just Invert
-                buffer += ANSI.INVERT_COLORS + '\x1b[4m' + char + ANSI.RESET_COLORS;
-            } else if (isGlobalSearchResult) {
-                // Global Match: Invert only
-                buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
-            } else if (syntaxColor) {
-                // Apply syntax color
-                buffer += syntaxColor + char + ANSI.RESET_COLORS;
+            // Handle Cursor at End of Line
+            // If cursor is at the very end of the line, and this is the last chunk of the line
+            if (logicalY === this.cursorY && this.cursorX === line.length) {
+                // Check if this chunk is the last one
+                if (chunkEnd === line.length) {
+                     buffer += ANSI.INVERT_COLORS + ' ' + ANSI.RESET_COLORS;
+                }
             }
-            else {
-                buffer += char;
+            
+            buffer += `${ANSI.CLEAR_LINE}`;
+            
+            // Draw Scrollbar (using calculated thumb)
+            if (showScrollbar) {
+                const isThumb = visualRowsRendered >= thumbStart && visualRowsRendered < thumbStart + thumbHeight;
+                const scrollChar = isThumb ? '┃' : '│'; 
+                buffer += `\x1b[${this.screenStartRow + visualRowsRendered};${this.screenCols}H${ANSI.RESET_COLORS}${scrollChar}`;
             }
-        }
-        
-        // 3. Handle Cursor at the absolute end of the line (drawing an inverted space)
-        const isCursorAtEndOfVisualLine = (visualRowIndex === currentVisualRowIndex && cursorVisualX === lineContent.length);
-        
-        if (isCursorAtEndOfVisualLine) {
-            // If the cursor is at the end of the line/chunk, draw the inverted space
-            buffer += ANSI.INVERT_COLORS + ' ' + ANSI.RESET_COLORS;
+
+            visualRowsRendered++;
         }
 
-        buffer += `${ANSI.CLEAR_LINE}`;
-      }
-
-      // Draw Scrollbar (Phase 2)
-      if (showScrollbar) {
-          const isThumb = y >= thumbStart && y < thumbStart + thumbHeight;
-          const scrollChar = isThumb ? '┃' : '│'; 
-          // Move to last column and draw
-          buffer += `\x1b[${this.screenStartRow + y};${this.screenCols}H${ANSI.RESET_COLORS}${scrollChar}`;
-      }
+        // Move to next logical line
+        logicalY++;
+        visualOffsetInLine = 0; // Reset offset for next line
     }
 
     // Draw status bar
@@ -159,8 +210,24 @@ function render(this: CliEditor): void {
     buffer += this.renderStatusBar();
     
     // Set physical cursor position (ensure cursor is visible on screen)
-    if (displayY >= this.screenStartRow && displayY < this.screenRows + this.screenStartRow) {
-         buffer += `\x1b[${displayY};${displayX + 1}H`;
+    // We need to calculate where the cursor IS on the screen relative to rowOffset
+    // We already know cursorY/cursorX.
+    // Calculate global visual index of cursor
+    const cursorGlobalVisualRow = this.findCurrentVisualRowIndex(); // O(N) scan potentially
+    
+    // Screen Y = (CursorGlobalVisual - RowOffset)
+    const relativeVisualRow = cursorGlobalVisualRow - this.rowOffset;
+    
+    if (relativeVisualRow >= 0 && relativeVisualRow < this.screenRows) {
+        // Calculate visual X
+        const line = this.lines[this.cursorY] || '';
+        const cx = this.cursorX;
+        // visual X is column in the wrapping
+        const visualXInChunk = cx % contentWidth;
+        
+        const displayY = this.screenStartRow + relativeVisualRow;
+        const displayX = visualXInChunk + this.gutterWidth + 1;
+        buffer += `\x1b[${displayY};${displayX}H`;
     }
 
     process.stdout.write(buffer);
@@ -211,9 +278,12 @@ function renderStatusBar(this: CliEditor): string {
             break;
         case 'edit':
         default:
+            // Calculate visual coordinates for display
+            // Note: findCurrentVisualRowIndex is expensive now? Yes O(N).
+            // But we need it for correct cursor positioning anyway.
             const visualRowIndex = this.findCurrentVisualRowIndex();
-            const visualRow = this.visualRows[visualRowIndex];
-            const visualX = visualRow ? (this.cursorX - visualRow.logicalXStart) : 0;
+            const contentWidthVal = Math.max(1, this.screenCols - this.gutterWidth);
+            const visualX = this.cursorX % contentWidthVal;
             
             const fileStatus = this.isDirty ? `* ${this.filepath}` : this.filepath;
             const pos = `Ln ${this.cursorY + 1}, Col ${this.cursorX + 1} (View: ${visualRowIndex + 1},${visualX + 1})`;
@@ -239,7 +309,8 @@ function renderStatusBar(this: CliEditor): string {
 }
 
 export const renderingMethods = {
-    recalculateVisualRows,
+    getLineVisualHeight,
+    getLogicalFromVisual,
     render,
     setStatusMessage,
     renderStatusBar,
