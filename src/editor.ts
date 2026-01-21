@@ -6,6 +6,7 @@ import { ANSI, KEYS } from './constants.js';
 import { HistoryManager } from './history.js';
 import { DocumentState, EditorMode, EditorOptions } from './types.js';
 import { SwapManager } from './editor.swap.js';
+import { ScreenBuffer } from './screen_buffer.js';
 
 // --- LOCAL TS DECLARATION (FIX TS7016/TS2306) ---
 // Cập nhật 2: Import type từ ./vendor/keypress.js
@@ -82,6 +83,7 @@ export class CliEditor {
   public syntaxCache: Map<number, Map<number, string>> = new Map();
   public history: HistoryManager;
   public swapManager: SwapManager;
+  public screenBuffer: ScreenBuffer;
   public isCleanedUp: boolean = false; 
   public resolvePromise: ((value: { saved: boolean; content: string }) => void) | null = null;
   public rejectPromise: ((reason?: any) => void) | null = null;
@@ -100,6 +102,7 @@ export class CliEditor {
     this.tabSize = options.tabSize ?? 4;
     this.inputStream = options.inputStream || process.stdin;
     this.history = new HistoryManager();
+    this.screenBuffer = new ScreenBuffer();
     this.saveState(true);
     
     // Initialize SwapManager
@@ -167,6 +170,11 @@ export class CliEditor {
     }
 
     this.updateScreenSize();
+    this.screenBuffer.resize(this.screenRows + 2, this.screenCols); // +2 for Status Bar space if needed? 
+    // Wait, screenRows = stdout.rows - 2. 
+    // ScreenBuffer should cover the FULL terminal size (rows, cols) to handle status bar rendering too.
+    // So pass process.stdout.rows.
+    this.screenBuffer.resize(process.stdout.rows, process.stdout.columns);
 
     // Enter alternate screen and hide cursor + Enable SGR Mouse (1006) and Button Event (1000)
     process.stdout.write(ANSI.ENTER_ALTERNATE_SCREEN + ANSI.HIDE_CURSOR + ANSI.CLEAR_SCREEN + '\x1b[?1000h' + '\x1b[?1006h');
@@ -185,6 +193,7 @@ export class CliEditor {
 
   private handleResize(this: CliEditor): void {
     this.updateScreenSize();
+    this.screenBuffer.resize(process.stdout.rows, process.stdout.columns);
     this.render();
   }
 

@@ -57,49 +57,35 @@ function render(this: CliEditor): void {
     this.adjustCursorPosition();
     this.scroll();
 
-    let buffer = ANSI.MOVE_CURSOR_TOP_LEFT;
+    // Clear buffer for next frame logic (conceptually)
+    // Actually ScreenBuffer.clear() fills with spaces, which is what we want for empty areas.
+    this.screenBuffer.clear();
     
-    // Calculate current visual cursor position
-    const currentVisualRowIndex = this.findCurrentVisualRowIndex();
-    
-    // We need to calculate the cursor's visual X on the fly
     const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
     
     // Find the starting logical line and offset based on rowOffset (which is visual)
     const startPos = this.getLogicalFromVisual(this.rowOffset);
     let logicalY = startPos.logicalY;
-    // visualOffsetInLine is how many *visual rows* into the logical line we are.
-    // e.g. if line wraps to 3 rows, and we are at offset 1, we start rendering from the 2nd chunk.
     let visualOffsetInLine = startPos.visualYOffset;
 
     let visualRowsRendered = 0;
     
     const selectionRange = this.getNormalizedSelection();
 
-    // Scrollbar calculations (Approximation for performance)
-    // Calculating exact total visual lines is O(N), expensive for scrollbar every frame.
-    // Workaround: Use logical lines for scrollbar scaling?
-    // User plan: "Chấp nhận scrollbar chỉ hiển thị tương đối theo Logical Lines"
-    // BUT rowOffset is visual. Mixing units is bad.
-    // Let's try to estimate total visual lines = lines.length * (average width / screen width)?
-    // For now, let's use logical mapping for scrollbar or just O(N) if file is small.
-    // Given the prompt "High Risk", let's assume we skip precise scrollbar or do a quick estimate.
-    // Let's use logical line ratio for scrollbar thumb position.
-    
+    // Scrollbar calculations
     const totalLines = this.lines.length;
-    // Map rowOffset (visual) back to logical for scrollbar positioning
     const startLogicalY = startPos.logicalY; 
-    const showScrollbar = totalLines > this.screenRows; // Approximate check
+    const showScrollbar = totalLines > this.screenRows; 
     const thumbHeight = showScrollbar ? Math.max(1, Math.floor((this.screenRows / totalLines) * this.screenRows)) : 0;
     const thumbStart = showScrollbar ? Math.floor((startLogicalY / totalLines) * this.screenRows) : 0;
 
     // Render Loop
     while (visualRowsRendered < this.screenRows) {
+        const screenY = this.screenStartRow + visualRowsRendered - 1; // 0-based Y for ScreenBuffer
+
         // Stop if we run out of content
         if (logicalY >= this.lines.length) {
-            // Fill remaining screen with tildes
-            buffer += `\x1b[${this.screenStartRow + visualRowsRendered};1H`; 
-            buffer += `~ ${ANSI.CLEAR_LINE}`;
+            this.screenBuffer.put(0, screenY, '~', ANSI.CYAN); 
             visualRowsRendered++;
             continue;
         }
@@ -109,8 +95,8 @@ function render(this: CliEditor): void {
 
         // Render chunks for this logical line starting from visualOffsetInLine
         for (let v = visualOffsetInLine; v < lineVisualHeight && visualRowsRendered < this.screenRows; v++) {
-            buffer += `\x1b[${this.screenStartRow + visualRowsRendered};1H`; 
-            
+            const currentScreenY = this.screenStartRow + visualRowsRendered - 1; // 0-based index for buffer
+
             // Calculate slice of string
             const chunkStart = v * contentWidth;
             const chunkEnd = Math.min(chunkStart + contentWidth, line.length);
@@ -118,11 +104,11 @@ function render(this: CliEditor): void {
             const chunk = (line.length === 0 && v === 0) ? '' : line.substring(chunkStart, chunkEnd);
             
             // 1. Draw Gutter
-            // Only draw number on the first visual row of the logical line
-            const lineNumber = (v === 0) 
+            const gutterStr = (v === 0) 
               ? `${logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
               : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
-            buffer += lineNumber;
+            
+            this.screenBuffer.putString(0, currentScreenY, gutterStr, ANSI.DIM); // Use DIM style for gutter? Or default.
 
             // 2. Syntax Highlighting & Char Rendering
             const syntaxColorMap = this.getLineSyntaxColor(logicalY, line);
@@ -130,19 +116,12 @@ function render(this: CliEditor): void {
             for (let i = 0; i < chunk.length; i++) {
                 const char = chunk[i];
                 const logicalX = chunkStart + i;
+                const bufferX = this.gutterWidth + i;
                 
-                // Check Cursor
-                // Cursor is at logicalY, this.cursorX.
-                // Is this visual row the one containing the cursor?
-                const isCursorRow = (logicalY === this.cursorY) && 
-                                    (logicalX >= chunkStart && logicalX < chunkStart + contentWidth);
-                
-                // The visual cursor is at (cursorX - chunkStart) inside this chunk.
                 const isCursorPosition = (logicalY === this.cursorY) && (logicalX === this.cursorX);
-
                 const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
                 
-                // Highlight search result
+                // Search Highlight Logic
                 let isGlobalSearchResult = false;
                 if (this.searchResultMap.has(logicalY)) {
                     const matches = this.searchResultMap.get(logicalY)!;
@@ -161,40 +140,38 @@ function render(this: CliEditor): void {
                     logicalX < (this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length)
                 );
 
-                const syntaxColor = syntaxColorMap.get(logicalX);
+                const syntaxColor = syntaxColorMap.get(logicalX) || '';
 
+                // Determine Style
+                let style = '';
                 if (isSelected) {
-                    buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+                    style = ANSI.INVERT_COLORS;
                 } else if (isCursorPosition) {
-                     buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+                    style = ANSI.INVERT_COLORS;
                 } else if (isCurrentSearchResult) {
-                    buffer += ANSI.INVERT_COLORS + '\x1b[4m' + char + ANSI.RESET_COLORS;
+                    style = ANSI.INVERT_COLORS + '\x1b[4m'; // Invert + Underline
                 } else if (isGlobalSearchResult) {
-                    buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
+                    style = ANSI.INVERT_COLORS;
                 } else if (syntaxColor) {
-                    buffer += syntaxColor + char + ANSI.RESET_COLORS;
+                    style = syntaxColor;
                 }
-                else {
-                    buffer += char;
-                }
+                
+                this.screenBuffer.put(bufferX, currentScreenY, char, style);
             }
 
             // Handle Cursor at End of Line
-            // If cursor is at the very end of the line, and this is the last chunk of the line
-            if (logicalY === this.cursorY && this.cursorX === line.length) {
-                // Check if this chunk is the last one
-                if (chunkEnd === line.length) {
-                     buffer += ANSI.INVERT_COLORS + ' ' + ANSI.RESET_COLORS;
-                }
+            if (logicalY === this.cursorY && this.cursorX === line.length && chunkEnd === line.length) {
+                // Determine X position for the space
+                const spaceX = this.gutterWidth + (line.length - chunkStart);
+                this.screenBuffer.put(spaceX, currentScreenY, ' ', ANSI.INVERT_COLORS);
             }
             
-            buffer += `${ANSI.CLEAR_LINE}`;
-            
-            // Draw Scrollbar (using calculated thumb)
+            // Draw Scrollbar
             if (showScrollbar) {
                 const isThumb = visualRowsRendered >= thumbStart && visualRowsRendered < thumbStart + thumbHeight;
                 const scrollChar = isThumb ? '┃' : '│'; 
-                buffer += `\x1b[${this.screenStartRow + visualRowsRendered};${this.screenCols}H${ANSI.RESET_COLORS}${scrollChar}`;
+                // Rightmost column: this.screenCols - 1 (0-based)
+                this.screenBuffer.put(this.screenCols - 1, currentScreenY, scrollChar, ANSI.RESET_COLORS);
             }
 
             visualRowsRendered++;
@@ -202,35 +179,31 @@ function render(this: CliEditor): void {
 
         // Move to next logical line
         logicalY++;
-        visualOffsetInLine = 0; // Reset offset for next line
+        visualOffsetInLine = 0; 
     }
 
-    // Draw status bar
-    buffer += `\x1b[${this.screenRows + this.screenStartRow};1H`;
-    buffer += this.renderStatusBar();
+    // Draw Status Bar
+    this.renderStatusBarToBuffer();
+    
+    // Flush Screen Buffer
+    this.screenBuffer.flush();
     
     // Set physical cursor position (ensure cursor is visible on screen)
-    // We need to calculate where the cursor IS on the screen relative to rowOffset
-    // We already know cursorY/cursorX.
-    // Calculate global visual index of cursor
-    const cursorGlobalVisualRow = this.findCurrentVisualRowIndex(); // O(N) scan potentially
+    // Calculation similar to before, but we print the ANSI code directly to stdout AFTER flush
+    // because ScreenBuffer.flush() leaves cursor wherever it finished.
     
-    // Screen Y = (CursorGlobalVisual - RowOffset)
+    const cursorGlobalVisualRow = this.findCurrentVisualRowIndex(); 
     const relativeVisualRow = cursorGlobalVisualRow - this.rowOffset;
     
     if (relativeVisualRow >= 0 && relativeVisualRow < this.screenRows) {
-        // Calculate visual X
         const line = this.lines[this.cursorY] || '';
         const cx = this.cursorX;
-        // visual X is column in the wrapping
         const visualXInChunk = cx % contentWidth;
         
         const displayY = this.screenStartRow + relativeVisualRow;
         const displayX = visualXInChunk + this.gutterWidth + 1;
-        buffer += `\x1b[${displayY};${displayX}H`;
+        process.stdout.write(`\x1b[${displayY};${displayX}H`);
     }
-
-    process.stdout.write(buffer);
 }
 
 /**
@@ -248,20 +221,27 @@ function setStatusMessage(this: CliEditor, message: string, timeoutMs: number = 
         this.statusMessage = this.DEFAULT_STATUS;
         this.isMessageCustom = false;
         this.statusTimeout = null;
-        if (!this.isCleanedUp) this.renderStatusBar();
+        if (!this.isCleanedUp) {
+            this.renderStatusBarToBuffer();
+            this.screenBuffer.flush();
+        }
       }, timeoutMs);
     }
-    if (!this.isCleanedUp) this.renderStatusBar();
+    if (!this.isCleanedUp) {
+        this.renderStatusBarToBuffer(); // Just update buffer
+        this.screenBuffer.flush(); // And flush? Yes, immediate update.
+    }
 }
 
 /**
- * Generates the status bar content (bottom two lines).
+ * Renders the status bar content directly to the ScreenBuffer.
  */
-function renderStatusBar(this: CliEditor): string {
-    let status = '';
+function renderStatusBarToBuffer(this: CliEditor): void {
     const contentWidth = this.screenCols;
+    const startY = this.screenRows + this.screenStartRow - 1; // 0-based Y
     
-    // --- Line 1: Mode, File Status, Position ---
+    let status = '';
+    // --- Line 1 ---
     switch (this.mode) {
         case 'search_find':
             status = (this.replaceQuery === null ? 'Find: ' : 'Find: ') + this.searchQuery;
@@ -273,39 +253,40 @@ function renderStatusBar(this: CliEditor): string {
             status = 'Go to Line: ' + this.goToLineQuery;
             break;
         case 'search_confirm':
-            // The (y/n/a/q) prompt is set via setStatusMessage
             status = this.statusMessage; 
             break;
         case 'edit':
         default:
-            // Calculate visual coordinates for display
-            // Note: findCurrentVisualRowIndex is expensive now? Yes O(N).
-            // But we need it for correct cursor positioning anyway.
             const visualRowIndex = this.findCurrentVisualRowIndex();
             const contentWidthVal = Math.max(1, this.screenCols - this.gutterWidth);
             const visualX = this.cursorX % contentWidthVal;
-            
             const fileStatus = this.isDirty ? `* ${this.filepath}` : this.filepath;
             const pos = `Ln ${this.cursorY + 1}, Col ${this.cursorX + 1} (View: ${visualRowIndex + 1},${visualX + 1})`;
-            
             const statusLeft = `[${fileStatus}]`.padEnd(Math.floor(contentWidth * 0.5));
             const statusRight = pos.padStart(Math.floor(contentWidth * 0.5));
-
             status = statusLeft + statusRight;
             break;
     }
     
+    // Pad and put line 1
     status = status.padEnd(contentWidth);
-    let buffer = `${ANSI.INVERT_COLORS}${status}${ANSI.RESET_COLORS}`;
-    
-    // --- Line 2: Message/Help line ---
-    buffer += `\x1b[${this.screenRows + this.screenStartRow + 1};1H`; 
-    
-    // Show prompt message if in search mode, otherwise show default help
+    this.screenBuffer.putString(0, startY, status, ANSI.INVERT_COLORS);
+
+    // --- Line 2 ---
     const message = (this.mode === 'edit' ? this.DEFAULT_STATUS : this.statusMessage).padEnd(contentWidth);
-    buffer += `${message}${ANSI.CLEAR_LINE}`;
-    
-    return buffer;
+    this.screenBuffer.putString(0, startY + 1, message, '');
+}
+
+
+/**
+ * Deprecated string-based status bar render, kept for interface compatibility if needed, 
+ * but logic is now in renderStatusBarToBuffer. 
+ * We can stub it or redirect it.
+ */
+function renderStatusBar(this: CliEditor): string {
+    // This is no longer used by render(), but might be called by legacy code if any?
+    // The Mixin requires it to exist.
+    return ''; 
 }
 
 export const renderingMethods = {
@@ -314,4 +295,5 @@ export const renderingMethods = {
     render,
     setStatusMessage,
     renderStatusBar,
+    renderStatusBarToBuffer,
 };

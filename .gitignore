@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.txt
 *.swp
+*.log
 
 # Vegh files (CodeTease's Snapshot Tool)
 *.vegh
@@ -12,3 +13,7 @@ dist/
 # Old Vegh files extension, kept for backward compatibility
 *.snap 
 # Not a branding: Get PyVegh in https://pypi.org/project/pyvegh/ (probably just `pip install pyvegh`)
+
+# Dev files
+dev.py 
+test.ts
