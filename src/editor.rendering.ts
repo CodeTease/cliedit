@@ -8,162 +8,221 @@ import { ANSI } from './constants.js';
  */
 
 /**
- * Recalculates the entire visual layout of the document based on screen width (line wrapping).
+ * Updates the gutter width dynamically based on the total number of lines.
+ * Ensures that line numbers (e.g., "10000") don't overflow into the content.
  */
-function recalculateVisualRows(this: CliEditor): void {
-    this.visualRows = [];
-    // Calculate content width excluding gutter
-    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+function updateGutterWidth(this: CliEditor): void {
+    const lineCount = this.lines.length;
+    // Calculate required width: Number of digits + 3 characters for padding/separator (" | ")
+    // Example: 10000 lines -> 5 digits + 3 = width 8.
+    // Minimum width is kept at 5 (default).
+    const requiredWidth = lineCount.toString().length + 3;
+    
+    // Update the editor's gutter width state
+    this.gutterWidth = Math.max(5, requiredWidth);
+}
 
-    for (let y = 0; y < this.lines.length; y++) {
-      const line = this.lines[y];
-      if (line.length === 0) {
-        // Handle empty line case
-        this.visualRows.push({ logicalY: y, logicalXStart: 0, content: '' });
-      } else {
-        let x = 0;
-        // Chunk the line content based on contentWidth
-        while (x < line.length) {
-          const chunk = line.substring(x, x + contentWidth);
-          this.visualRows.push({ logicalY: y, logicalXStart: x, content: chunk });
-          x += contentWidth;
+/**
+ * Calculates how many visual rows a logical line occupies.
+ * @param lineIndex The index of the logical line.
+ */
+function getLineVisualHeight(this: CliEditor, lineIndex: number): number {
+    const line = this.lines[lineIndex];
+    if (line === undefined) return 1;
+    // Empty line takes 1 row
+    if (line.length === 0) return 1;
+    
+    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+    return Math.ceil(line.length / contentWidth);
+}
+
+/**
+ * Maps a global visual row index to its corresponding logical line and offset.
+ * Note: This is O(N) where N is the number of logical lines.
+ * Optimization: For very large files, this would need a tree structure.
+ * * @param visualY The global visual row index (0-based).
+ * @returns Object containing logicalY and the visual offset within that line.
+ */
+function getLogicalFromVisual(this: CliEditor, visualY: number): { logicalY: number; visualYOffset: number } {
+    let currentVisualY = 0;
+    
+    for (let i = 0; i < this.lines.length; i++) {
+        const height = this.getLineVisualHeight(i);
+        if (currentVisualY + height > visualY) {
+            return {
+                logicalY: i,
+                visualYOffset: visualY - currentVisualY
+            };
         }
-      }
+        currentVisualY += height;
     }
+    
+    // If out of bounds, return the last line's end
+    return { 
+        logicalY: this.lines.length - 1, 
+        visualYOffset: Math.max(0, this.getLineVisualHeight(this.lines.length - 1) - 1)
+    };
 }
 
 /**
  * The main rendering loop.
  */
 function render(this: CliEditor): void {
+    // 1. Dynamic Gutter Update
+    // We update this every frame to handle cases where lines are added/removed.
+    // This fixes the "Gutter Overflow" issue on large files.
+    this.updateGutterWidth();
+
     this.adjustCursorPosition();
     this.scroll();
 
-    let buffer = ANSI.MOVE_CURSOR_TOP_LEFT;
+    // Clear buffer for next frame logic (conceptually)
+    // Actually ScreenBuffer.clear() fills with spaces, which is what we want for empty areas.
+    this.screenBuffer.clear();
     
-    const currentVisualRowIndex = this.findCurrentVisualRowIndex();
-    const cursorVisualRow = this.visualRows[currentVisualRowIndex];
-    const cursorVisualX = cursorVisualRow ? (this.cursorX - cursorVisualRow.logicalXStart) : 0;
+    // Recalculate content width with the NEW gutter width
+    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
     
-    // Determine where the physical cursor should be placed
-    const displayX = cursorVisualX + this.gutterWidth;
-    const displayY = this.screenStartRow + (currentVisualRowIndex - this.rowOffset); 
+    // Find the starting logical line and offset based on rowOffset (which is visual)
+    const startPos = this.getLogicalFromVisual(this.rowOffset);
+    let logicalY = startPos.logicalY;
+    let visualOffsetInLine = startPos.visualYOffset;
+
+    let visualRowsRendered = 0;
     
     const selectionRange = this.getNormalizedSelection();
 
     // Scrollbar calculations
-    const totalLines = this.visualRows.length;
-    const showScrollbar = totalLines > this.screenRows;
+    const totalLines = this.lines.length;
+    // const startLogicalY = startPos.logicalY; // Unused variable
+    const showScrollbar = totalLines > this.screenRows; 
     const thumbHeight = showScrollbar ? Math.max(1, Math.floor((this.screenRows / totalLines) * this.screenRows)) : 0;
-    const thumbStart = showScrollbar ? Math.floor((this.rowOffset / totalLines) * this.screenRows) : 0;
+    const thumbStart = showScrollbar ? Math.floor((startPos.logicalY / totalLines) * this.screenRows) : 0;
 
-    // Draw visual rows
-    for (let y = 0; y < this.screenRows; y++) {
-      const visualRowIndex = y + this.rowOffset;
-      // Move to start of the row
-      buffer += `\x1b[${this.screenStartRow + y};1H`; 
-      
-      if (visualRowIndex >= this.visualRows.length) {
-        // Draw Tilde for lines past file end
-        buffer += `~ ${ANSI.CLEAR_LINE}`;
-      } else {
-        const row = this.visualRows[visualRowIndex];
-        
-        // 1. Draw Gutter (Line Number)
-        const lineNumber = (row.logicalXStart === 0) 
-          ? `${row.logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
-          : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
-        buffer += lineNumber;
+    // Render Loop
+    while (visualRowsRendered < this.screenRows) {
+        const screenY = this.screenStartRow + visualRowsRendered - 1; // 0-based Y for ScreenBuffer
 
-        let lineContent = row.content;
-        
-        // Retrieve syntax color map for the full logical line
-        // We pass the full line content because the scanner needs context
-        const syntaxColorMap = this.getLineSyntaxColor(row.logicalY, this.lines[row.logicalY]);
+        // Stop if we run out of content
+        if (logicalY >= this.lines.length) {
+            this.screenBuffer.put(0, screenY, '~', ANSI.CYAN); 
+            visualRowsRendered++;
+            continue;
+        }
 
-        // 2. Draw Content (Character by Character for selection/cursor)
-        for (let i = 0; i < lineContent.length; i++) {
-            const char = lineContent[i];
-            const logicalX = row.logicalXStart + i;
-            const logicalY = row.logicalY;
+        const line = this.lines[logicalY];
+        const lineVisualHeight = this.getLineVisualHeight(logicalY);
+
+        // Render chunks for this logical line starting from visualOffsetInLine
+        for (let v = visualOffsetInLine; v < lineVisualHeight && visualRowsRendered < this.screenRows; v++) {
+            const currentScreenY = this.screenStartRow + visualRowsRendered - 1; // 0-based index for buffer
+
+            // Calculate slice of string
+            const chunkStart = v * contentWidth;
+            const chunkEnd = Math.min(chunkStart + contentWidth, line.length);
+            // Handle empty line case
+            const chunk = (line.length === 0 && v === 0) ? '' : line.substring(chunkStart, chunkEnd);
             
-            const isCursorPosition = (visualRowIndex === currentVisualRowIndex && i === cursorVisualX);
-            const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
+            // 1. Draw Gutter
+            // Ensure padding logic uses the current gutterWidth
+            const gutterStr = (v === 0) 
+              ? `${logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
+              : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
             
-            // Highlight search result under cursor
-            // Check if this character is part of ANY search result
-            let isGlobalSearchResult = false;
-            if (this.searchResultMap.has(logicalY)) {
-                const matches = this.searchResultMap.get(logicalY)!;
-                for (const match of matches) {
-                    if (logicalX >= match.start && logicalX < match.end) {
-                        isGlobalSearchResult = true;
-                        break;
+            this.screenBuffer.putString(0, currentScreenY, gutterStr, ANSI.DIM); 
+
+            // 2. Syntax Highlighting & Char Rendering
+            const syntaxColorMap = this.getLineSyntaxColor(logicalY, line);
+            
+            for (let i = 0; i < chunk.length; i++) {
+                const char = chunk[i];
+                const logicalX = chunkStart + i;
+                const bufferX = this.gutterWidth + i;
+                
+                const isCursorPosition = (logicalY === this.cursorY) && (logicalX === this.cursorX);
+                const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
+                
+                // Search Highlight Logic
+                let isGlobalSearchResult = false;
+                if (this.searchResultMap.has(logicalY)) {
+                    const matches = this.searchResultMap.get(logicalY)!;
+                    for (const match of matches) {
+                        if (logicalX >= match.start && logicalX < match.end) {
+                            isGlobalSearchResult = true;
+                            break;
+                        }
                     }
                 }
+
+                const isCurrentSearchResult = (
+                    this.searchResultIndex !== -1 &&
+                    this.searchResults[this.searchResultIndex]?.y === logicalY &&
+                    logicalX >= this.searchResults[this.searchResultIndex]?.x &&
+                    logicalX < (this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length)
+                );
+
+                const syntaxColor = syntaxColorMap.get(logicalX) || '';
+
+                // Determine Style
+                let style = '';
+                if (isSelected) {
+                    style = ANSI.INVERT_COLORS;
+                } else if (isCursorPosition) {
+                    style = ANSI.INVERT_COLORS;
+                } else if (isCurrentSearchResult) {
+                    style = ANSI.INVERT_COLORS + '\x1b[4m'; // Invert + Underline
+                } else if (isGlobalSearchResult) {
+                    style = ANSI.INVERT_COLORS;
+                } else if (syntaxColor) {
+                    style = syntaxColor;
+                }
+                
+                this.screenBuffer.put(bufferX, currentScreenY, char, style);
             }
 
-            // Check if this character is part of the CURRENTLY SELECTED search result
-            const isCurrentSearchResult = (
-                this.searchResultIndex !== -1 &&
-                this.searchResults[this.searchResultIndex]?.y === logicalY &&
-                logicalX >= this.searchResults[this.searchResultIndex]?.x &&
-                logicalX < (this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length)
-            );
-
-            // Syntax highlight color
-            const syntaxColor = syntaxColorMap.get(logicalX);
-
-            if (isSelected) {
-                buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
-            } else if (isCursorPosition) {
-                 // Cursor is a single inverted character if not already covered by selection
-                 buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
-            } else if (isCurrentSearchResult) {
-                // Selected Match: Invert + Underline (if supported) or just Invert
-                buffer += ANSI.INVERT_COLORS + '\x1b[4m' + char + ANSI.RESET_COLORS;
-            } else if (isGlobalSearchResult) {
-                // Global Match: Invert only
-                buffer += ANSI.INVERT_COLORS + char + ANSI.RESET_COLORS;
-            } else if (syntaxColor) {
-                // Apply syntax color
-                buffer += syntaxColor + char + ANSI.RESET_COLORS;
+            // Handle Cursor at End of Line
+            if (logicalY === this.cursorY && this.cursorX === line.length && chunkEnd === line.length) {
+                // Determine X position for the space
+                const spaceX = this.gutterWidth + (line.length - chunkStart);
+                this.screenBuffer.put(spaceX, currentScreenY, ' ', ANSI.INVERT_COLORS);
             }
-            else {
-                buffer += char;
+            
+            // Draw Scrollbar
+            if (showScrollbar) {
+                const isThumb = visualRowsRendered >= thumbStart && visualRowsRendered < thumbStart + thumbHeight;
+                const scrollChar = isThumb ? '┃' : '│'; 
+                // Rightmost column: this.screenCols - 1 (0-based)
+                this.screenBuffer.put(this.screenCols - 1, currentScreenY, scrollChar, ANSI.RESET_COLORS);
             }
+
+            visualRowsRendered++;
         }
-        
-        // 3. Handle Cursor at the absolute end of the line (drawing an inverted space)
-        const isCursorAtEndOfVisualLine = (visualRowIndex === currentVisualRowIndex && cursorVisualX === lineContent.length);
-        
-        if (isCursorAtEndOfVisualLine) {
-            // If the cursor is at the end of the line/chunk, draw the inverted space
-            buffer += ANSI.INVERT_COLORS + ' ' + ANSI.RESET_COLORS;
-        }
 
-        buffer += `${ANSI.CLEAR_LINE}`;
-      }
-
-      // Draw Scrollbar (Phase 2)
-      if (showScrollbar) {
-          const isThumb = y >= thumbStart && y < thumbStart + thumbHeight;
-          const scrollChar = isThumb ? '┃' : '│'; 
-          // Move to last column and draw
-          buffer += `\x1b[${this.screenStartRow + y};${this.screenCols}H${ANSI.RESET_COLORS}${scrollChar}`;
-      }
+        // Move to next logical line
+        logicalY++;
+        visualOffsetInLine = 0; 
     }
 
-    // Draw status bar
-    buffer += `\x1b[${this.screenRows + this.screenStartRow};1H`;
-    buffer += this.renderStatusBar();
+    // Draw Status Bar
+    this.renderStatusBarToBuffer();
+    
+    // Flush Screen Buffer
+    this.screenBuffer.flush();
     
     // Set physical cursor position (ensure cursor is visible on screen)
-    if (displayY >= this.screenStartRow && displayY < this.screenRows + this.screenStartRow) {
-         buffer += `\x1b[${displayY};${displayX + 1}H`;
+    
+    const cursorGlobalVisualRow = this.findCurrentVisualRowIndex(); 
+    const relativeVisualRow = cursorGlobalVisualRow - this.rowOffset;
+    
+    if (relativeVisualRow >= 0 && relativeVisualRow < this.screenRows) {
+        const line = this.lines[this.cursorY] || '';
+        const cx = this.cursorX;
+        const visualXInChunk = cx % contentWidth;
+        
+        const displayY = this.screenStartRow + relativeVisualRow;
+        const displayX = visualXInChunk + this.gutterWidth + 1;
+        process.stdout.write(`\x1b[${displayY};${displayX}H`);
     }
-
-    process.stdout.write(buffer);
 }
 
 /**
@@ -181,20 +240,27 @@ function setStatusMessage(this: CliEditor, message: string, timeoutMs: number = 
         this.statusMessage = this.DEFAULT_STATUS;
         this.isMessageCustom = false;
         this.statusTimeout = null;
-        if (!this.isCleanedUp) this.renderStatusBar();
+        if (!this.isCleanedUp) {
+            this.renderStatusBarToBuffer();
+            this.screenBuffer.flush();
+        }
       }, timeoutMs);
     }
-    if (!this.isCleanedUp) this.renderStatusBar();
+    if (!this.isCleanedUp) {
+        this.renderStatusBarToBuffer(); // Just update buffer
+        this.screenBuffer.flush(); // And flush? Yes, immediate update.
+    }
 }
 
 /**
- * Generates the status bar content (bottom two lines).
+ * Renders the status bar content directly to the ScreenBuffer.
  */
-function renderStatusBar(this: CliEditor): string {
-    let status = '';
+function renderStatusBarToBuffer(this: CliEditor): void {
     const contentWidth = this.screenCols;
+    const startY = this.screenRows + this.screenStartRow - 1; // 0-based Y
     
-    // --- Line 1: Mode, File Status, Position ---
+    let status = '';
+    // --- Line 1 ---
     switch (this.mode) {
         case 'search_find':
             status = (this.replaceQuery === null ? 'Find: ' : 'Find: ') + this.searchQuery;
@@ -206,41 +272,48 @@ function renderStatusBar(this: CliEditor): string {
             status = 'Go to Line: ' + this.goToLineQuery;
             break;
         case 'search_confirm':
-            // The (y/n/a/q) prompt is set via setStatusMessage
             status = this.statusMessage; 
             break;
         case 'edit':
         default:
             const visualRowIndex = this.findCurrentVisualRowIndex();
-            const visualRow = this.visualRows[visualRowIndex];
-            const visualX = visualRow ? (this.cursorX - visualRow.logicalXStart) : 0;
-            
+            const contentWidthVal = Math.max(1, this.screenCols - this.gutterWidth);
+            const visualX = this.cursorX % contentWidthVal;
             const fileStatus = this.isDirty ? `* ${this.filepath}` : this.filepath;
             const pos = `Ln ${this.cursorY + 1}, Col ${this.cursorX + 1} (View: ${visualRowIndex + 1},${visualX + 1})`;
-            
             const statusLeft = `[${fileStatus}]`.padEnd(Math.floor(contentWidth * 0.5));
             const statusRight = pos.padStart(Math.floor(contentWidth * 0.5));
-
             status = statusLeft + statusRight;
             break;
     }
     
+    // Pad and put line 1
     status = status.padEnd(contentWidth);
-    let buffer = `${ANSI.INVERT_COLORS}${status}${ANSI.RESET_COLORS}`;
-    
-    // --- Line 2: Message/Help line ---
-    buffer += `\x1b[${this.screenRows + this.screenStartRow + 1};1H`; 
-    
-    // Show prompt message if in search mode, otherwise show default help
+    this.screenBuffer.putString(0, startY, status, ANSI.INVERT_COLORS);
+
+    // --- Line 2 ---
     const message = (this.mode === 'edit' ? this.DEFAULT_STATUS : this.statusMessage).padEnd(contentWidth);
-    buffer += `${message}${ANSI.CLEAR_LINE}`;
-    
-    return buffer;
+    this.screenBuffer.putString(0, startY + 1, message, '');
+}
+
+
+/**
+ * Deprecated string-based status bar render, kept for interface compatibility if needed, 
+ * but logic is now in renderStatusBarToBuffer. 
+ * We can stub it or redirect it.
+ */
+function renderStatusBar(this: CliEditor): string {
+    // This is no longer used by render(), but might be called by legacy code if any?
+    // The Mixin requires it to exist.
+    return ''; 
 }
 
 export const renderingMethods = {
-    recalculateVisualRows,
+    updateGutterWidth, // Export the new method
+    getLineVisualHeight,
+    getLogicalFromVisual,
     render,
     setStatusMessage,
     renderStatusBar,
+    renderStatusBarToBuffer,
 };

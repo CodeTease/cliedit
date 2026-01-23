@@ -26,10 +26,19 @@ It includes line wrapping, visual navigation, smart auto-indentation, undo/redo,
 - **Piping Support:** Works with standard Unix pipes (e.g. `cat file.txt | cliedit`).
 - **Crash Recovery:** Automatically saves changes to a hidden swap file (e.g. `.filename.swp`) to prevent data loss.
 
+### Architecture Improvements
+
+`cliedit` employs a optimization strategy to handle large files efficiently while maintaining a responsive UI:
+
+*   **Math-Only Viewport:** Rendering is stateless. The editor calculates visual wrapping on the fly (Virtual Scrolling) rather than storing a massive state array, significantly reducing memory usage for large documents.
+*   **Screen Buffer Diffing:** A double-buffering system compares the current and next frame to send only the changed characters to the terminal, minimizing I/O and eliminating flicker.
+*   **Worker Threads:** Syntax highlighting runs asynchronously in a background Worker Thread, preventing UI freezes during rendering of complex lines.
+*   **Recommended Limits:** Good for files up to 50k lines (perfect for configs, scripts, and logs).
+
 ## Installation
 ```shell
 npm install cliedit
-````
+```
 
 ## Usage
 
@@ -116,7 +125,6 @@ Key types are also exported for convenience:
 ```typescript
 import type {
   DocumentState,
-  VisualRow,
   EditorMode,
   NormalizedRange,
 } from 'cliedit';

@@ -43,7 +43,6 @@ function insertContentAtCursor(this: CliEditor, contentLines: string[]): void {
     }
     this.setDirty();
     this.invalidateSyntaxCache();
-    this.recalculateVisualRows();
 }
 
 /**
@@ -184,7 +183,6 @@ function indentSelection(this: CliEditor): void {
     
     this.setDirty();
     this.invalidateSyntaxCache();
-    this.recalculateVisualRows();
 }
 
 /**
@@ -227,7 +225,6 @@ function outdentSelection(this: CliEditor): void {
          }
          this.setDirty();
          this.invalidateSyntaxCache();
-         this.recalculateVisualRows();
     }
 }
 
@@ -267,7 +264,6 @@ function moveLines(this: CliEditor, direction: -1 | 1): void {
     }
     
     this.setDirty();
-    this.recalculateVisualRows();
 }
 
 /**
@@ -298,7 +294,6 @@ function duplicateLineOrSelection(this: CliEditor): void {
     }
     
     this.setDirty();
-    this.recalculateVisualRows();
 }
 
 

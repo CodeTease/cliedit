@@ -8,32 +8,23 @@ import { CliEditor } from './editor.js';
 
 /**
  * Finds the index of the visual row that currently contains the cursor.
+ * Uses math to calculate position based on line lengths and screen width.
  */
 function findCurrentVisualRowIndex(this: CliEditor): number {
-    const contentWidth = this.screenCols - this.gutterWidth;
-    if (contentWidth <= 0) return 0;
+    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
     
-    // Find the visual row index corresponding to the logical cursor position (cursorY, cursorX)
-    for (let i = 0; i < this.visualRows.length; i++) {
-      const row = this.visualRows[i];
-      if (row.logicalY === this.cursorY) {
-        // Check if cursorX falls within this visual row's content chunk
-        if (this.cursorX >= row.logicalXStart && 
-            this.cursorX <= row.logicalXStart + row.content.length) { 
-          // Edge case: If cursorX is exactly at the start of a wrapped line (and not start of logical line), 
-          // treat it as the end of the previous visual row for consistent movement.
-          if (this.cursorX > 0 && this.cursorX === row.logicalXStart && i > 0) {
-            return i - 1;
-          }
-          return i;
-        }
-      }
-      // Optimization: if we've passed the cursor's logical line, the row must be the last one processed.
-      if (row.logicalY > this.cursorY) {
-        return i - 1;
-      }
+    let visualRowIndex = 0;
+    
+    // Sum visual height of all lines before current cursorY
+    for (let i = 0; i < this.cursorY; i++) {
+        visualRowIndex += this.getLineVisualHeight(i);
     }
-    return Math.max(0, this.visualRows.length - 1); 
+    
+    // Add visual offset within current line
+    // e.g. if cursorX is 250 and width is 100, we are on the 3rd row (index 2) of this line.
+    visualRowIndex += Math.floor(this.cursorX / contentWidth);
+    
+    return visualRowIndex;
 }
 
 /**
@@ -63,45 +54,68 @@ function moveCursorLogically(this: CliEditor, dx: number): void {
  */
 function moveCursorVisually(this: CliEditor, dy: number): void {
     const currentVisualRow = this.findCurrentVisualRowIndex();
-    const targetVisualRow = Math.max(0, Math.min(currentVisualRow + dy, this.visualRows.length - 1));
+    
+    // Prevent moving out of bounds (top)
+    if (dy < 0 && currentVisualRow === 0) return;
+    
+    // Calculate total visual rows (O(N) - expensive but necessary for bounds check at bottom)
+    // Optimization: If dy > 0, we can check as we go. But for now, let's keep it safe.
+    // Or just let getLogicalFromVisual handle out of bounds.
+    
+    const targetVisualRow = Math.max(0, currentVisualRow + dy);
+    
+    // Determine logical position of target visual row
+    const targetPos = this.getLogicalFromVisual(targetVisualRow);
+    
+    // If we went past the end, clamp to end
+    if (targetPos.logicalY > this.lines.length - 1) {
+        this.cursorY = this.lines.length - 1;
+        this.cursorX = this.lines[this.cursorY].length;
+        return;
+    }
 
-    if (currentVisualRow === targetVisualRow) return;
-
-    const targetRow = this.visualRows[targetVisualRow];
+    this.cursorY = targetPos.logicalY;
     
-    // Calculate the cursor's visual column position relative to its visual row start
-    const currentVisualX = this.cursorX - (this.visualRows[currentVisualRow]?.logicalXStart || 0);
+    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
     
-    this.cursorY = targetRow.logicalY;
+    // We want to maintain visual X (column on screen)
+    // Current visual X offset in the row
+    const currentVisualXOffset = this.cursorX % contentWidth;
     
-    // Maintain the visual column position as closely as possible
-    this.cursorX = Math.min(
-      targetRow.logicalXStart + currentVisualX,
-      this.lines[this.cursorY].length
-    );
+    // Target logical X start for that visual row chunk
+    const targetChunkStart = targetPos.visualYOffset * contentWidth;
+    
+    // New cursor X
+    this.cursorX = targetChunkStart + currentVisualXOffset;
+    
+    // Clamp to line length
+    const lineLength = this.lines[this.cursorY].length;
+    if (this.cursorX > lineLength) {
+        this.cursorX = lineLength;
+    }
 }
 
 /**
  * Finds the start of the current visual line (Home key behavior).
  */
 function findVisualRowStart(this: CliEditor): number {
-    const visualRow = this.visualRows[this.findCurrentVisualRowIndex()];
-    return visualRow.logicalXStart;
+    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+    const chunkIndex = Math.floor(this.cursorX / contentWidth);
+    return chunkIndex * contentWidth;
 }
 
 /**
  * Finds the end of the current visual line (End key behavior).
  */
 function findVisualRowEnd(this: CliEditor): number {
-    const visualRow = this.visualRows[this.findCurrentVisualRowIndex()];
-    const lineLength = this.lines[visualRow.logicalY].length;
-    const contentWidth = this.screenCols - this.gutterWidth;
+    const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
+    const chunkIndex = Math.floor(this.cursorX / contentWidth);
+    const lineLength = this.lines[this.cursorY].length;
     
-    // The visual end is the start of the visual row + the maximum content width
-    const visualEnd = visualRow.logicalXStart + contentWidth;
-
-    // The actual logical X should be the minimum of the line's end and the visual end
-    return Math.min(lineLength, visualEnd);
+    const chunkStart = chunkIndex * contentWidth;
+    const chunkEnd = chunkStart + contentWidth;
+    
+    return Math.min(lineLength, chunkEnd);
 }
 
 /**
@@ -164,20 +178,6 @@ function enterGoToLineMode(this: CliEditor): void {
     this.setStatusMessage('Go to Line (ESC to cancel): ');
 }
 
-export const navigationMethods = {
-    findCurrentVisualRowIndex,
-    moveCursorLogically,
-    moveCursorVisually,
-    findVisualRowStart,
-    findVisualRowEnd,
-    adjustCursorPosition,
-    scroll,
-    jumpToLine,
-    enterGoToLineMode,
-    moveCursorByWord,
-    matchBracket,
-};
-
 function moveCursorByWord(this: CliEditor, direction: 'left' | 'right'): void {
     const line = this.lines[this.cursorY];
     if (direction === 'left') {
@@ -187,12 +187,8 @@ function moveCursorByWord(this: CliEditor, direction: 'left' | 'right'): void {
                 this.cursorX = this.lines[this.cursorY].length;
             }
         } else {
-            // Move left until we hit a non-word char, then until we hit a word char
-            // Simple logic: skip whitespace, then skip word chars
             let i = this.cursorX - 1;
-            // 1. Skip spaces if we are currently on a space
             while (i > 0 && line[i] === ' ') i--;
-            // 2. Skip non-spaces
             while (i > 0 && line[i - 1] !== ' ') i--;
             this.cursorX = i;
         }
@@ -204,9 +200,7 @@ function moveCursorByWord(this: CliEditor, direction: 'left' | 'right'): void {
             }
         } else {
             let i = this.cursorX;
-            // 1. Skip current word chars
             while (i < line.length && line[i] !== ' ') i++;
-            // 2. Skip spaces
             while (i < line.length && line[i] === ' ') i++;
             this.cursorX = i;
         }
@@ -220,9 +214,7 @@ function matchBracket(this: CliEditor): void {
     const revPairs: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
     
     if (pairs[char]) {
-        // Find closing
         let depth = 1;
-        // Search forward
         for (let y = this.cursorY; y < this.lines.length; y++) {
             const l = this.lines[y];
             const startX = (y === this.cursorY) ? this.cursorX + 1 : 0;
@@ -239,9 +231,7 @@ function matchBracket(this: CliEditor): void {
             }
         }
     } else if (revPairs[char]) {
-        // Find opening
         let depth = 1;
-        // Search backward
         for (let y = this.cursorY; y >= 0; y--) {
             const l = this.lines[y];
             const startX = (y === this.cursorY) ? this.cursorX - 1 : l.length - 1;
@@ -259,3 +249,17 @@ function matchBracket(this: CliEditor): void {
         }
     }
 }
+
+export const navigationMethods = {
+    findCurrentVisualRowIndex,
+    moveCursorLogically,
+    moveCursorVisually,
+    findVisualRowStart,
+    findVisualRowEnd,
+    adjustCursorPosition,
+    scroll,
+    jumpToLine,
+    enterGoToLineMode,
+    moveCursorByWord,
+    matchBracket,
+};

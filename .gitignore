@@ -2,6 +2,7 @@ node_modules/
 dist/
 *.txt
 *.swp
+*.log
 
 # Vegh files (CodeTease's Snapshot Tool)
 *.vegh

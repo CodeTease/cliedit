@@ -124,7 +124,6 @@ function replaceCurrentAndFindNext(this: CliEditor): void {
 
     // We MUST re-execute search as all indices may have changed
     this.executeSearch();
-    this.recalculateVisualRows();
 
     // Find the next result *after* the one we just replaced
     let nextIndex = -1;
@@ -177,7 +176,6 @@ function replaceAll(this: CliEditor): void {
     }
     
     this.setDirty();
-    this.recalculateVisualRows();
     this.mode = 'edit';
     this.searchResults = [];
     this.searchResultIndex = -1;

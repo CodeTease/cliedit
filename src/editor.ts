@@ -1,17 +1,14 @@
 // src/editor.ts
-import { promises as fs } from 'fs';
-// Cập nhật 1: Import từ ./vendor/keypress.js
+
 import keypress from './vendor/keypress.js'; 
-import { ANSI, KEYS } from './constants.js';
+import { ANSI } from './constants.js';
 import { HistoryManager } from './history.js';
-import { DocumentState, VisualRow, EditorMode, EditorOptions } from './types.js';
+import { EditorMode, EditorOptions } from './types.js';
 import { SwapManager } from './editor.swap.js';
-
-// --- LOCAL TS DECLARATION (FIX TS7016/TS2306) ---
-// Cập nhật 2: Import type từ ./vendor/keypress.js
-import type { KeypressEvent } from './vendor/keypress.js';
-
-// Block `declare module 'keypress'` đã bị xóa
+import { ScreenBuffer } from './screen_buffer.js';
+import { Worker } from 'worker_threads';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 // Import all functional modules
 import { editingMethods } from './editor.editing.js';
@@ -22,7 +19,7 @@ import { searchMethods } from './editor.search.js';
 import { historyMethods } from './editor.history.js';
 import { ioMethods } from './editor.io.js';
 import { keyHandlingMethods, TKeyHandlingMethods } from './editor.keys.js'; 
-import { selectionMethods, TSelectionMethods, NormalizedRange } from './editor.selection.js'; 
+import { selectionMethods, TSelectionMethods } from './editor.selection.js'; 
 import { syntaxMethods } from './editor.syntax.js';
 
 // --- Interface Merging (For TypeScript) ---
@@ -66,7 +63,6 @@ export class CliEditor {
   public gutterWidth: number = 5;
   public tabSize: number = 4;
   public screenStartRow: number = 1;
-  public visualRows: VisualRow[] = [];
   public mode: EditorMode = 'edit';
   public statusMessage: string = DEFAULT_STATUS;
   public statusTimeout: NodeJS.Timeout | null = null;
@@ -81,8 +77,10 @@ export class CliEditor {
   public searchResultMap: Map<number, Array<{ start: number; end: number }>> = new Map();
   public searchResultIndex: number = -1;
   public syntaxCache: Map<number, Map<number, string>> = new Map();
+  public syntaxWorker: Worker | null = null;
   public history: HistoryManager;
   public swapManager: SwapManager;
+  public screenBuffer: ScreenBuffer;
   public isCleanedUp: boolean = false; 
   public resolvePromise: ((value: { saved: boolean; content: string }) => void) | null = null;
   public rejectPromise: ((reason?: any) => void) | null = null;
@@ -101,10 +99,38 @@ export class CliEditor {
     this.tabSize = options.tabSize ?? 4;
     this.inputStream = options.inputStream || process.stdin;
     this.history = new HistoryManager();
+    this.screenBuffer = new ScreenBuffer();
     this.saveState(true);
     
     // Initialize SwapManager
     this.swapManager = new SwapManager(this.filepath, () => this.lines.join('\n'));
+    
+    // Initialize Worker
+    try {
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = dirname(__filename);
+        // Assuming compiled code is in dist/ and syntax.worker.js is there.
+        const workerPath = join(__dirname, 'syntax.worker.js');
+        this.syntaxWorker = new Worker(workerPath);
+        this.syntaxWorker.on('message', this.handleWorkerMessage.bind(this));
+    } catch (e) {
+        // Fallback or log error
+        // console.error("Failed to load worker", e);
+    }
+  }
+
+  private handleWorkerMessage(msg: { lineIndex: number; colorMap: Map<number, string> }): void {
+      const { lineIndex, colorMap } = msg;
+      this.syntaxCache.set(lineIndex, colorMap);
+      
+      // Trigger Partial Render?
+      // For simplicity, just render. The screen buffer diffing handles optimization.
+      // But we only need to render IF the line is currently visible?
+      // Checking visibility is optimization.
+      // Let's just render.
+      if (!this.isCleanedUp) {
+          this.render();
+      }
   }
 
   // --- Lifecycle Methods ---
@@ -118,7 +144,8 @@ export class CliEditor {
       
       const performCleanup = (callback?: () => void) => {
         this.swapManager.stop(); // Stop swap interval
-        
+        this.syntaxWorker?.terminate();
+
         if (this.isCleanedUp) {
             if (callback) callback();
             return;
@@ -168,7 +195,11 @@ export class CliEditor {
     }
 
     this.updateScreenSize();
-    this.recalculateVisualRows();
+    this.screenBuffer.resize(this.screenRows + 2, this.screenCols); // +2 for Status Bar space if needed? 
+    // screenRows = stdout.rows - 2. 
+    // ScreenBuffer should cover the FULL terminal size (rows, cols) to handle status bar rendering too.
+    // So pass process.stdout.rows.
+    this.screenBuffer.resize(process.stdout.rows, process.stdout.columns);
 
     // Enter alternate screen and hide cursor + Enable SGR Mouse (1006) and Button Event (1000)
     process.stdout.write(ANSI.ENTER_ALTERNATE_SCREEN + ANSI.HIDE_CURSOR + ANSI.CLEAR_SCREEN + '\x1b[?1000h' + '\x1b[?1006h');
@@ -187,7 +218,7 @@ export class CliEditor {
 
   private handleResize(this: CliEditor): void {
     this.updateScreenSize();
-    this.recalculateVisualRows();
+    this.screenBuffer.resize(process.stdout.rows, process.stdout.columns);
     this.render();
   }
 

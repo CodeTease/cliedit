@@ -73,5 +73,5 @@ export async function openEditor(filepath: string, options?: EditorOptions): Pro
 export { CliEditor } from './editor.js';
 
 // Export key types for TypeScript users
-export type { DocumentState, VisualRow, EditorMode } from './types.js';
+export type { DocumentState, EditorMode } from './types.js';
 export type { NormalizedRange } from './editor.selection.js';
