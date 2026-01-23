@@ -8,6 +8,21 @@ import { ANSI } from './constants.js';
  */
 
 /**
+ * Updates the gutter width dynamically based on the total number of lines.
+ * Ensures that line numbers (e.g., "10000") don't overflow into the content.
+ */
+function updateGutterWidth(this: CliEditor): void {
+    const lineCount = this.lines.length;
+    // Calculate required width: Number of digits + 3 characters for padding/separator (" | ")
+    // Example: 10000 lines -> 5 digits + 3 = width 8.
+    // Minimum width is kept at 5 (default).
+    const requiredWidth = lineCount.toString().length + 3;
+    
+    // Update the editor's gutter width state
+    this.gutterWidth = Math.max(5, requiredWidth);
+}
+
+/**
  * Calculates how many visual rows a logical line occupies.
  * @param lineIndex The index of the logical line.
  */
@@ -25,8 +40,7 @@ function getLineVisualHeight(this: CliEditor, lineIndex: number): number {
  * Maps a global visual row index to its corresponding logical line and offset.
  * Note: This is O(N) where N is the number of logical lines.
  * Optimization: For very large files, this would need a tree structure.
- * 
- * @param visualY The global visual row index (0-based).
+ * * @param visualY The global visual row index (0-based).
  * @returns Object containing logicalY and the visual offset within that line.
  */
 function getLogicalFromVisual(this: CliEditor, visualY: number): { logicalY: number; visualYOffset: number } {
@@ -54,6 +68,11 @@ function getLogicalFromVisual(this: CliEditor, visualY: number): { logicalY: num
  * The main rendering loop.
  */
 function render(this: CliEditor): void {
+    // 1. Dynamic Gutter Update
+    // We update this every frame to handle cases where lines are added/removed.
+    // This fixes the "Gutter Overflow" issue on large files.
+    this.updateGutterWidth();
+
     this.adjustCursorPosition();
     this.scroll();
 
@@ -61,6 +80,7 @@ function render(this: CliEditor): void {
     // Actually ScreenBuffer.clear() fills with spaces, which is what we want for empty areas.
     this.screenBuffer.clear();
     
+    // Recalculate content width with the NEW gutter width
     const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
     
     // Find the starting logical line and offset based on rowOffset (which is visual)
@@ -74,10 +94,10 @@ function render(this: CliEditor): void {
 
     // Scrollbar calculations
     const totalLines = this.lines.length;
-    const startLogicalY = startPos.logicalY; 
+    // const startLogicalY = startPos.logicalY; // Unused variable
     const showScrollbar = totalLines > this.screenRows; 
     const thumbHeight = showScrollbar ? Math.max(1, Math.floor((this.screenRows / totalLines) * this.screenRows)) : 0;
-    const thumbStart = showScrollbar ? Math.floor((startLogicalY / totalLines) * this.screenRows) : 0;
+    const thumbStart = showScrollbar ? Math.floor((startPos.logicalY / totalLines) * this.screenRows) : 0;
 
     // Render Loop
     while (visualRowsRendered < this.screenRows) {
@@ -104,11 +124,12 @@ function render(this: CliEditor): void {
             const chunk = (line.length === 0 && v === 0) ? '' : line.substring(chunkStart, chunkEnd);
             
             // 1. Draw Gutter
+            // Ensure padding logic uses the current gutterWidth
             const gutterStr = (v === 0) 
               ? `${logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
               : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
             
-            this.screenBuffer.putString(0, currentScreenY, gutterStr, ANSI.DIM); // Use DIM style for gutter? Or default.
+            this.screenBuffer.putString(0, currentScreenY, gutterStr, ANSI.DIM); 
 
             // 2. Syntax Highlighting & Char Rendering
             const syntaxColorMap = this.getLineSyntaxColor(logicalY, line);
@@ -189,8 +210,6 @@ function render(this: CliEditor): void {
     this.screenBuffer.flush();
     
     // Set physical cursor position (ensure cursor is visible on screen)
-    // Calculation similar to before, but we print the ANSI code directly to stdout AFTER flush
-    // because ScreenBuffer.flush() leaves cursor wherever it finished.
     
     const cursorGlobalVisualRow = this.findCurrentVisualRowIndex(); 
     const relativeVisualRow = cursorGlobalVisualRow - this.rowOffset;
@@ -290,6 +309,7 @@ function renderStatusBar(this: CliEditor): string {
 }
 
 export const renderingMethods = {
+    updateGutterWidth, // Export the new method
     getLineVisualHeight,
     getLogicalFromVisual,
     render,

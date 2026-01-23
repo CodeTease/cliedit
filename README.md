@@ -33,6 +33,7 @@ It includes line wrapping, visual navigation, smart auto-indentation, undo/redo,
 *   **Math-Only Viewport:** Rendering is stateless. The editor calculates visual wrapping on the fly (Virtual Scrolling) rather than storing a massive state array, significantly reducing memory usage for large documents.
 *   **Screen Buffer Diffing:** A double-buffering system compares the current and next frame to send only the changed characters to the terminal, minimizing I/O and eliminating flicker.
 *   **Worker Threads:** Syntax highlighting runs asynchronously in a background Worker Thread, preventing UI freezes during rendering of complex lines.
+*   **Recommended Limits:** Good for files up to 50k lines (perfect for configs, scripts, and logs).
 
 ## Installation
 ```shell
