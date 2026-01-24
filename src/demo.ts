@@ -4,7 +4,7 @@
 
 import { promises as fs } from 'fs';
 import path from 'path';
-import { openEditor } from './index.js'; // Import the public API
+import { openEditor } from '../dist/index.js'; // Import the public API
 
 /**
  * Demo runner function.
