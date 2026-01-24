@@ -25,7 +25,9 @@
     "build": "tsc",
     "prepublishOnly": "npm run build",
     "demo": "npm run build && cross-env NODE_ENV=development tsx src/demo.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix"
   },
   "keywords": [
     "cli",
@@ -38,9 +40,14 @@
   "author": "CodeTease",
   "license": "MIT",
   "devDependencies": {
+    "@eslint/js": "^9",
     "@types/node": "^22",
     "cross-env": "^7",
+    "eslint": "^9",
+    "globals": "^17",
     "tsx": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "typescript-eslint": "^8",
+    "vitest": "^4"
   }
 }
