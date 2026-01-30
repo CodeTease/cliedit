@@ -6,6 +6,8 @@ A lightweight, zero-dependency, raw-mode terminal editor component for Node.js.
 
 It includes line wrapping, visual navigation, smart auto-indentation, undo/redo, text selection, Find/Replace, and cross-platform clipboard support.
 
+A **CodeTease** project.
+
 ## Features
 
 - **Raw Mode TTY:** Takes over the terminal for a full "app-like" feel.

@@ -1,6 +1,6 @@
 {
   "name": "cliedit",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "A zero-dependency, embeddable TUI text editor for Node.js CLI applications.",
   "repository": {
     "type": "git",
