@@ -1,4 +1,5 @@
 // src/editor.ts
+/* eslint-disable @typescript-eslint/no-unsafe-declaration-merging */
 
 import keypress from './vendor/keypress.js'; 
 import { ANSI } from './constants.js';
@@ -83,8 +84,8 @@ export class CliEditor {
   public screenBuffer: ScreenBuffer;
   public isCleanedUp: boolean = false; 
   public resolvePromise: ((value: { saved: boolean; content: string }) => void) | null = null;
-  public rejectPromise: ((reason?: any) => void) | null = null;
-  public inputStream: any; // ReadableStream
+  public rejectPromise: ((reason?: unknown) => void) | null = null;
+  public inputStream: NodeJS.ReadStream; // ReadableStream
   
   // State flag indicating the editor is in the process of closing (prevents input/render race)
   public isExiting: boolean = false;
@@ -113,7 +114,7 @@ export class CliEditor {
         const workerPath = join(__dirname, 'syntax.worker.js');
         this.syntaxWorker = new Worker(workerPath);
         this.syntaxWorker.on('message', this.handleWorkerMessage.bind(this));
-    } catch (e) {
+    } catch {
         // Fallback or log error
         // console.error("Failed to load worker", e);
     }

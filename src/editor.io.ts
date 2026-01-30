@@ -25,8 +25,9 @@ async function saveFile(this: CliEditor): Promise<void> {
         this.isDirty = false; // Reset dirty flag
         this.quitConfirm = false; // Reset quit confirmation
         this.setStatusMessage(`Saved: ${this.filepath}`, 2000);
-    } catch (err: any) {
-        this.setStatusMessage(`Save Error: ${err.message}`);
+    } catch (err) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        this.setStatusMessage(`Save Error: ${(err as any).message}`);
     }
 }
 

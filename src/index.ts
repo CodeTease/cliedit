@@ -13,9 +13,9 @@ export async function openEditor(filepath: string, options?: EditorOptions): Pro
   let pipedContent = '';
   if (!process.stdin.isTTY) {
       try {
-          const chunks = [];
+          const chunks: Buffer[] = [];
           for await (const chunk of process.stdin) {
-              chunks.push(chunk);
+              chunks.push(Buffer.from(chunk));
           }
           pipedContent = Buffer.concat(chunks).toString('utf-8');
           
@@ -30,9 +30,9 @@ export async function openEditor(filepath: string, options?: EditorOptions): Pro
           
           
           if (options) {
-             (options as any).inputStream = ttyReadStream;
+             options.inputStream = ttyReadStream;
           } else {
-             options = { inputStream: ttyReadStream } as any;
+             options = { inputStream: ttyReadStream };
           }
       } catch (e) {
           console.error('Failed to read from stdin or open TTY:', e);
@@ -56,8 +56,9 @@ export async function openEditor(filepath: string, options?: EditorOptions): Pro
   if (filepath && !initialContent) {
       try {
         initialContent = await fs.readFile(filepath, 'utf-8');
-      } catch (err: any) {
-        if (err.code !== 'ENOENT') {
+      } catch (err) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if ((err as any).code !== 'ENOENT') {
           throw err;
         }
       }

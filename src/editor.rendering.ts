@@ -215,7 +215,6 @@ function render(this: CliEditor): void {
     const relativeVisualRow = cursorGlobalVisualRow - this.rowOffset;
     
     if (relativeVisualRow >= 0 && relativeVisualRow < this.screenRows) {
-        const line = this.lines[this.cursorY] || '';
         const cx = this.cursorX;
         const visualXInChunk = cx % contentWidth;
         
@@ -275,7 +274,7 @@ function renderStatusBarToBuffer(this: CliEditor): void {
             status = this.statusMessage; 
             break;
         case 'edit':
-        default:
+        default: {
             const visualRowIndex = this.findCurrentVisualRowIndex();
             const contentWidthVal = Math.max(1, this.screenCols - this.gutterWidth);
             const visualX = this.cursorX % contentWidthVal;
@@ -285,6 +284,7 @@ function renderStatusBarToBuffer(this: CliEditor): void {
             const statusRight = pos.padStart(Math.floor(contentWidth * 0.5));
             status = statusLeft + statusRight;
             break;
+        }
     }
     
     // Pad and put line 1

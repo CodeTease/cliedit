@@ -111,8 +111,9 @@ async function pasteLine(this: CliEditor): Promise<void> {
       
       this.insertContentAtCursor(pasteLines);
 
-    } catch (error: any) {
-      this.setStatusMessage(`Paste failed: ${error.message}`);
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      this.setStatusMessage(`Paste failed: ${(error as any).message}`);
     }
 }
 

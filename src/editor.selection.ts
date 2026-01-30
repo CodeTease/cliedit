@@ -79,12 +79,12 @@ function getSelectedText(this: CliEditor): string {
     const range = this.getNormalizedSelection();
     if (!range) return '';
 
-    let selectedLines: string[] = [];
+    const selectedLines: string[] = [];
 
     for (let y = range.start.y; y <= range.end.y; y++) {
         const line = this.lines[y] || '';
 
-        let startX = (y === range.start.y) ? range.start.x : 0;
+        const startX = (y === range.start.y) ? range.start.x : 0;
         let endX = (y === range.end.y) ? range.end.x : line.length;
 
         // Ensure we don't try to select past the actual line length

@@ -15,5 +15,5 @@ export type EditorMode = 'edit' | 'search_find' | 'search_replace' | 'search_con
 export interface EditorOptions {
     tabSize?: number;
     gutterWidth?: number;
-    inputStream?: any; // stream.Readable
+    inputStream?: NodeJS.ReadStream; // stream.Readable
 }

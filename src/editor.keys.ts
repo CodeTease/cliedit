@@ -69,7 +69,13 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else keyName = key.sequence; 
     } else {
         // 2.2. Map standard keys (Arrow, Home, End, Enter, Tab)
-        if (key.name === 'up') keyName = KEYS.ARROW_UP;
+        // Check Meta keys first!
+        if (key.meta && key.name === 'left') keyName = 'ALT_LEFT';
+        else if (key.meta && key.name === 'right') keyName = 'ALT_RIGHT';
+        else if (key.meta && key.name === 'up') keyName = KEYS.ALT_UP;
+        else if (key.meta && key.name === 'down') keyName = KEYS.ALT_DOWN;
+        
+        else if (key.name === 'up') keyName = KEYS.ARROW_UP;
         else if (key.name === 'down') keyName = KEYS.ARROW_DOWN;
         else if (key.name === 'left') keyName = KEYS.ARROW_LEFT;
         else if (key.name === 'right') keyName = KEYS.ARROW_RIGHT;
@@ -81,10 +87,6 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else if (key.name === 'backspace') keyName = KEYS.BACKSPACE;
         else if (key.name === 'return') keyName = KEYS.ENTER;
         else if (key.name === 'tab') keyName = key.shift ? KEYS.SHIFT_TAB : KEYS.TAB;
-        else if (key.meta && key.name === 'left') keyName = 'ALT_LEFT';
-        else if (key.meta && key.name === 'right') keyName = 'ALT_RIGHT';
-        else if (key.meta && key.name === 'up') keyName = KEYS.ALT_UP;
-        else if (key.meta && key.name === 'down') keyName = KEYS.ALT_DOWN;
         // Handle Mouse Scroll events explicitly
         else if (key.name === 'scrollup') keyName = 'SCROLL_UP';
         else if (key.name === 'scrolldown') keyName = 'SCROLL_DOWN';
@@ -264,7 +266,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             this.clearSearchResults();
             this.insertNewLine();
             return true;
-        case KEYS.BACKSPACE:
+        case KEYS.BACKSPACE: {
             this.clearSearchResults();
             // Handle auto-pair deletion
             const line = this.lines[this.cursorY] || '';
@@ -284,6 +286,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
                 else this.deleteBackward();
             }
             return true;
+        }
         case KEYS.DELETE:
             this.clearSearchResults();
             if (this.selectionAnchor) this.deleteSelectedText();
@@ -557,7 +560,7 @@ function handleGoToLineKeys(this: CliEditor, key: string): void {
     };
 
     switch (key) {
-        case KEYS.ENTER:
+        case KEYS.ENTER: {
             const lineNumber = parseInt(this.goToLineQuery, 10);
             if (!isNaN(lineNumber) && lineNumber > 0) {
                 this.jumpToLine(lineNumber);
@@ -567,6 +570,7 @@ function handleGoToLineKeys(this: CliEditor, key: string): void {
             }
             this.goToLineQuery = '';
             break;
+        }
         case KEYS.ESCAPE:
         case KEYS.CTRL_C:
         case KEYS.CTRL_Q:

@@ -51,7 +51,7 @@ export class SwapManager {
         try {
             await fs.writeFile(this.swapPath, currentContent, 'utf-8');
             this.lastSavedContent = currentContent;
-        } catch (error) {
+        } catch {
             // Silently ignore swap errors to not disrupt user flow
         }
     }
@@ -60,8 +60,9 @@ export class SwapManager {
         this.stop();
         try {
             await fs.unlink(this.swapPath);
-        } catch (err: any) {
-            if (err.code !== 'ENOENT') {
+        } catch (err) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            if ((err as any).code !== 'ENOENT') {
                 // ignore
             }
         }
