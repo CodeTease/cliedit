@@ -34,7 +34,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         return;
     }
 
-    let keyName: string | undefined = undefined;
+    let keyName: string | undefined;
     let edited = false;
 
     // --- 1. Printable characters (key is null/undefined) ---
@@ -404,7 +404,7 @@ function handleCtrlQ(this: CliEditor): void {
  * Handles Ctrl+C (Copy Selection or All) sequence.
  */
 async function handleCopy(this: CliEditor): Promise<void> {
-    let textToCopy = '';
+    let textToCopy: string;
     if (this.selectionAnchor) {
         textToCopy = this.getSelectedText();
         this.setStatusMessage('Selection copied!', 1000);

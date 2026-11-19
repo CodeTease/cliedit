@@ -279,7 +279,7 @@ function renderStatusBarToBuffer(this: CliEditor): void {
     const contentWidth = this.screenCols;
     const startY = this.screenRows + this.screenStartRow - 1; // 0-based Y
 
-    let status = '';
+    let status: string;
     // --- Line 1 ---
     switch (this.mode) {
         case 'search_find':
