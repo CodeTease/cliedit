@@ -8,59 +8,63 @@ import { SwapManager } from './editor.swap.js';
  * Public API function: Opens the editor.
  * Reads the file and initializes CliEditor.
  */
-export async function openEditor(filepath: string, options?: EditorOptions): Promise<{ saved: boolean; content: string }> {
+export async function openEditor(
+  filepath: string,
+  options?: EditorOptions,
+): Promise<{ saved: boolean; content: string }> {
   // 1. Handle Piping (Stdin)
   let pipedContent = '';
   if (!process.stdin.isTTY) {
-      try {
-          const chunks: Buffer[] = [];
-          for await (const chunk of process.stdin) {
-              chunks.push(Buffer.from(chunk));
-          }
-          pipedContent = Buffer.concat(chunks).toString('utf-8');
-          
-          // CRITICAL: Re-open TTY for user input!
-          // We need to bypass the consumed stdin and open the actual terminal device.
-          const ttyPath = process.platform === 'win32' ? 'CONIN$' : '/dev/tty';
-          const ttyFd = await fs.open(ttyPath, 'r');
-          
-          const { ReadStream } = await import('tty');
-          const ttyReadStream = new ReadStream(ttyFd.fd);
-          
-          
-          if (options) {
-             options.inputStream = ttyReadStream;
-          } else {
-             options = { inputStream: ttyReadStream };
-          }
-      } catch (e) {
-          console.error('Failed to read from stdin or open TTY:', e);
+    try {
+      const chunks: Buffer[] = [];
+      for await (const chunk of process.stdin) {
+        chunks.push(Buffer.from(chunk));
       }
+      pipedContent = Buffer.concat(chunks).toString('utf-8');
+
+      // CRITICAL: Re-open TTY for user input!
+      // We need to bypass the consumed stdin and open the actual terminal device.
+      const ttyPath = process.platform === 'win32' ? 'CONIN$' : '/dev/tty';
+      const ttyFd = await fs.open(ttyPath, 'r');
+
+      const { ReadStream } = await import('tty');
+      const ttyReadStream = new ReadStream(ttyFd.fd);
+
+      if (options) {
+        options.inputStream = ttyReadStream;
+      } else {
+        options = { inputStream: ttyReadStream };
+      }
+    } catch (e) {
+      console.error('Failed to read from stdin or open TTY:', e);
+    }
   }
 
   // 2. Check for a swap file left behind by a crashed session.
-  if (filepath && await SwapManager.check(filepath)) {
-      console.log(`\x1b[33mWarning: Swap file detected for ${filepath}. Recovering content...\x1b[0m`);
-      await new Promise(r => setTimeout(r, 1500));
-      
-      const swapContent = await SwapManager.read(filepath);
-      const editor = new CliEditor(swapContent, filepath, options);
-      editor.isDirty = true; // Mark as dirty manually to avoid potential mixin issues
-      editor.statusMessage = 'RECOVERED FROM SWAP FILE';
-      return editor.run();
+  if (filepath && (await SwapManager.check(filepath))) {
+    console.log(
+      `\x1b[33mWarning: Swap file detected for ${filepath}. Recovering content...\x1b[0m`,
+    );
+    await new Promise((r) => setTimeout(r, 1500));
+
+    const swapContent = await SwapManager.read(filepath);
+    const editor = new CliEditor(swapContent, filepath, options);
+    editor.isDirty = true; // Mark as dirty manually to avoid potential mixin issues
+    editor.statusMessage = 'RECOVERED FROM SWAP FILE';
+    return editor.run();
   }
 
   let initialContent = pipedContent; // Default to piped content
-  
+
   if (filepath && !initialContent) {
-      try {
-        initialContent = await fs.readFile(filepath, 'utf-8');
-      } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        if ((err as any).code !== 'ENOENT') {
-          throw err;
-        }
+    try {
+      initialContent = await fs.readFile(filepath, 'utf-8');
+    } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if ((err as any).code !== 'ENOENT') {
+        throw err;
       }
+    }
   }
 
   // 3. Initialize and run editor

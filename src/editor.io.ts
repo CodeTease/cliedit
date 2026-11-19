@@ -10,8 +10,8 @@ import { promises as fs } from 'fs';
 /**
  * Sets the document state to 'dirty' (unsaved changes).
  */
-function setDirty(this: CliEditor): void { 
-    this.isDirty = true; 
+function setDirty(this: CliEditor): void {
+    this.isDirty = true;
 }
 
 /**

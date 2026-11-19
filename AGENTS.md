@@ -24,6 +24,8 @@ bun run build        # tsc -> dist/ (this is the authoritative typecheck)
 bun test             # run tests/ (Bun's built-in runner, vitest-compatible API)
 bun run lint         # eslint src/ only
 bun run lint:fix     # eslint src/ --fix
+bun run format       # bun fmt, driven by bunfig.toml
+bun run format:check # bun fmt --check; exits 1 on drift, writes nothing
 bun run demo         # build, then run src/demo.ts against dist/
 ```
 
@@ -49,6 +51,7 @@ src/
   demo.ts               dev-only runner; NOT part of the build
 tests/                  *.test.ts, shares tests/test_utils.ts
 docs/                   user and architecture documentation
+bunfig.toml             the only formatter config (`bun fmt` options + overrides)
 ```
 
 ## Architecture: the mixin pattern
@@ -95,9 +98,14 @@ inheritance. The interface merge makes those methods visible on the class type.
 - **Mutating document content** should call `setDirty()` and, when line text
   changes, `invalidateSyntaxCache()`. Call `saveState()` before the first
   mutation of a multi-step edit so undo restores the pre-edit document.
-- **Formatting:** 2 spaces in `editor.ts`/`index.ts`, 4 spaces in the
-  `editor.*` mixins and `screen_buffer.ts`, single quotes, semicolons. Match the
-  surrounding file rather than reformatting it.
+- **Formatting is mechanical: run `bun run format`, never hand-align.**
+  `bunfig.toml` holds the only style config (there is no Prettier or oxfmt
+  file): 100 columns, single quotes, semicolons, `trailingComma = "all"`, 2-space
+  base with a 4-space override for `src/editor.*.ts`, `src/screen_buffer.ts`,
+  `src/syntax.common.ts`, `src/syntax.worker.ts`, `src/types.ts` and `tests/`.
+  A new 4-space module in `src/` must be added to that override list, or the
+  formatter will reindent it to 2. `src/vendor/` and every `*.md` are
+  `ignorePatterns`, so neither is ever reformatted.
 
 ## Testing
 
@@ -110,7 +118,8 @@ way to unit-test mixin logic without a TTY.
 - Add tests under `tests/<area>.test.ts`.
 - Prefer pure logic (navigation, selection, history, screen buffer, syntax);
   the TTY lifecycle is not unit-testable here.
-- Run `bun test` and `bun run build` before declaring work done.
+- Run `bun test`, `bun run build` and `bun run format:check` before declaring
+  work done.
 
 ## Behavioural model
 
@@ -147,6 +156,15 @@ These three ideas prevent most bugs:
 - **`tsconfig.json` only includes `src/**/*.ts`** and excludes `src/demo.ts`, so
   `tests/` and the demo are not typechecked by `tsc`. `eslint` likewise covers
   `src/` only and skips `src/vendor/`.
+- **Never name a script `fmt`.** When `package.json` has a `fmt` script, `bun fmt`
+  runs that script instead of the formatter, so the scripts here are `format` and
+  `format:check`. Use `bun run format` / `bun run format:check` (or
+  `bun fmt --no-script`) rather than a bare `bun fmt`.
+- **`bun fmt` formats JavaScript/TypeScript, JSON, YAML and TOML, not just `src/`.**
+  That is why `tsconfig.json`, `eslint.config.js` and `.github/workflows/*.yml` are
+  part of `format:check`. Markdown is excluded on purpose: the docs embed
+  TypeScript snippets written in the real 4-space style, and formatting them at the
+  2-space base would desync every example from the code it documents.
 - **`src/demo.ts` imports from `../dist/index.js`**, so the demo always needs a
   build first — that is why `bun run demo` builds before running it.
 - **The syntax worker is loaded by path** (`join(__dirname, 'syntax.worker.js')`),

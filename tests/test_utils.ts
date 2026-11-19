@@ -1,4 +1,3 @@
-
 import { CliEditor } from '../src/editor.js';
 import { ScreenBuffer } from '../src/screen_buffer.js';
 
@@ -14,7 +13,7 @@ export class MockEditor {
     lines: string[] = [''];
     cursorX: number = 0;
     cursorY: number = 0;
-    selectionAnchor: { x: number, y: number } | null = null;
+    selectionAnchor: { x: number; y: number } | null = null;
     rowOffset: number = 0;
     screenRows: number = 20;
     screenCols: number = 80;
@@ -35,21 +34,27 @@ export class MockEditor {
     }
 
     // Stubs
-    setDirty() { this.isDirty = true; }
+    setDirty() {
+        this.isDirty = true;
+    }
     saveState() {}
     render() {}
-    scroll() {} 
-    setStatusMessage(msg: string) { this.statusMessage = msg; }
+    scroll() {}
+    setStatusMessage(msg: string) {
+        this.statusMessage = msg;
+    }
     invalidateSyntaxCache() {}
     updateGutterWidth() {} // From rendering, might be needed if we don't mixin rendering
-    
+
     // For renderingMethods
-    getLineSyntaxColor(lineIndex: number, line: string) { return new Map(); }
+    getLineSyntaxColor(lineIndex: number, line: string) {
+        return new Map();
+    }
     adjustCursorPosition() {} // Stub, or let mixin overwrite it
 }
 
 export function createMockEditor(mixins: any[]): CliEditor {
     const editor = new MockEditor();
-    mixins.forEach(mixin => Object.assign(editor, mixin));
+    mixins.forEach((mixin) => Object.assign(editor, mixin));
     return editor as unknown as CliEditor;
 }

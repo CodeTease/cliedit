@@ -21,8 +21,8 @@ export type TKeyHandlingMethods = {
     handleCtrlQ: () => void;
     handleCopy: () => Promise<void>;
     handleCharacterKey: (ch: string) => void;
-    cutSelection: () => Promise<void>; 
-    handleSave: () => Promise<void>; 
+    cutSelection: () => Promise<void>;
+    handleSave: () => Promise<void>;
     handleAltArrows: (keyName: string) => void;
 };
 
@@ -33,9 +33,9 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     if (this.isExiting) {
         return;
     }
-    
+
     let keyName: string | undefined = undefined;
-    let edited = false; 
+    let edited = false;
 
     // --- 1. Printable characters (key is null/undefined) ---
     if (!key) {
@@ -47,7 +47,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
             } else if (this.mode === 'edit') {
                 edited = this.handleEditKeys(ch);
                 if (edited) {
-                    this.saveState(); 
+                    this.saveState();
                 }
             } else if (this.mode === 'search_confirm') {
                 this.handleSearchConfirmKeys(ch);
@@ -55,9 +55,9 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
             this.render();
             return;
         }
-        return; 
+        return;
     }
-    
+
     // --- 2. Special keys and Ctrl/Meta combinations (key is defined) ---
 
     // 2.1. Map Control sequences (Ctrl+Arrow for selection)
@@ -66,14 +66,13 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else if (key.name === 'down') keyName = KEYS.CTRL_ARROW_DOWN;
         else if (key.name === 'left') keyName = KEYS.CTRL_ARROW_LEFT;
         else if (key.name === 'right') keyName = KEYS.CTRL_ARROW_RIGHT;
-        else keyName = key.sequence; 
+        else keyName = key.sequence;
     } else {
         // 2.2. Map standard keys (Arrow, Home, End, Enter, Tab); Meta is checked first.
         if (key.meta && key.name === 'left') keyName = 'ALT_LEFT';
         else if (key.meta && key.name === 'right') keyName = 'ALT_RIGHT';
         else if (key.meta && key.name === 'up') keyName = KEYS.ALT_UP;
         else if (key.meta && key.name === 'down') keyName = KEYS.ALT_DOWN;
-        
         else if (key.name === 'up') keyName = KEYS.ARROW_UP;
         else if (key.name === 'down') keyName = KEYS.ARROW_DOWN;
         else if (key.name === 'left') keyName = KEYS.ARROW_LEFT;
@@ -89,7 +88,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         // Handle Mouse Scroll events explicitly
         else if (key.name === 'scrollup') keyName = 'SCROLL_UP';
         else if (key.name === 'scrolldown') keyName = 'SCROLL_DOWN';
-        else keyName = key.sequence; 
+        else keyName = key.sequence;
     }
 
     // --- 3. Route according to Mode ---
@@ -119,12 +118,12 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         if (keyName === 'SCROLL_UP') {
             const scrollAmount = 3;
             this.rowOffset = Math.max(0, this.rowOffset - scrollAmount);
-            
+
             // Scrolling up moves the viewport up, so a cursor that was visible
             // can end up below the new bottom edge and must be pulled into view.
             const currentVisualRow = this.findCurrentVisualRowIndex();
             const bottomEdge = this.rowOffset + this.screenRows - 1;
-            
+
             // scroll() would snap the viewport back to a cursor outside the
             // viewport, so the cursor has to be moved inside it first.
             if (currentVisualRow > bottomEdge) {
@@ -133,21 +132,21 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
                 const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
                 this.cursorX = targetPos.visualYOffset * contentWidth;
             }
-
         } else if (keyName === 'SCROLL_DOWN') {
             const scrollAmount = 3;
             // The viewport is clamped against total visual rows (O(N) per scroll
             // event) so the document cannot be scrolled past its end.
             let totalVisualRows = 0;
-            for(let i=0; i<this.lines.length; i++) totalVisualRows += this.getLineVisualHeight(i);
+            for (let i = 0; i < this.lines.length; i++)
+                totalVisualRows += this.getLineVisualHeight(i);
 
             const maxOffset = Math.max(0, totalVisualRows - this.screenRows);
             this.rowOffset = Math.min(maxOffset, this.rowOffset + scrollAmount);
-            
+
             // Scrolling down can leave the cursor above the new viewport; move it
             // to the first visible row.
             const currentVisualRow = this.findCurrentVisualRowIndex();
-            
+
             if (currentVisualRow < this.rowOffset) {
                 const targetPos = this.getLogicalFromVisual(this.rowOffset);
                 this.cursorY = targetPos.logicalY;
@@ -170,9 +169,9 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
 }
 
 function handleAltArrows(this: CliEditor, keyName: string): void {
-     this.clearSearchResults(); // Clear highlights on smart navigation
-     if (keyName === 'ALT_LEFT') this.moveCursorByWord('left');
-     else if (keyName === 'ALT_RIGHT') this.moveCursorByWord('right');
+    this.clearSearchResults(); // Clear highlights on smart navigation
+    if (keyName === 'ALT_LEFT') this.moveCursorByWord('left');
+    else if (keyName === 'ALT_RIGHT') this.moveCursorByWord('right');
 }
 
 /**
@@ -182,8 +181,14 @@ function handleAltArrows(this: CliEditor, keyName: string): void {
 function handleEditKeys(this: CliEditor, key: string): boolean {
     // Cancel selection on normal navigation
     const isNavigation = [
-        KEYS.ARROW_UP, KEYS.ARROW_DOWN, KEYS.ARROW_LEFT, KEYS.ARROW_RIGHT,
-        KEYS.HOME, KEYS.END, KEYS.PAGE_UP, KEYS.PAGE_DOWN
+        KEYS.ARROW_UP,
+        KEYS.ARROW_DOWN,
+        KEYS.ARROW_LEFT,
+        KEYS.ARROW_RIGHT,
+        KEYS.HOME,
+        KEYS.END,
+        KEYS.PAGE_UP,
+        KEYS.PAGE_DOWN,
     ].includes(key);
 
     if (isNavigation) {
@@ -193,7 +198,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             this.setStatusMessage(this.DEFAULT_STATUS, 0);
         }
     }
-    
+
     switch (key) {
         // --- Exit / Save ---
         case KEYS.CTRL_Q:
@@ -205,7 +210,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
         case KEYS.CTRL_C:
             this.handleCopy();
             return false;
-        
+
         // --- Navigation (Non-Selection) ---
         case KEYS.ARROW_UP:
             this.moveCursorVisually(-1);
@@ -245,11 +250,13 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             const charAfter = line[this.cursorX];
             if (
                 !this.selectionAnchor &&
-                charBefore && charAfter &&
+                charBefore &&
+                charAfter &&
                 PAIR_MAP[charBefore] === charAfter
             ) {
                 // Delete both characters of the pair
-                this.lines[this.cursorY] = line.slice(0, this.cursorX - 1) + line.slice(this.cursorX + 1);
+                this.lines[this.cursorY] =
+                    line.slice(0, this.cursorX - 1) + line.slice(this.cursorX + 1);
                 this.cursorX--; // Move cursor back
                 this.setDirty();
             } else {
@@ -302,7 +309,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
         case KEYS.CTRL_G:
             this.findNext();
             return false;
-        
+
         // --- Smart Navigation ---
         case 'ALT_LEFT':
             this.moveCursorByWord('left');
@@ -313,15 +320,15 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
         case KEYS.CTRL_M: // Ctrl+M: jump to the matching bracket.
             this.matchBracket();
             return false;
-            
+
         // Undo/redo replaces the whole document, so visual rows are recomputed
         // by the render that follows.
         case KEYS.CTRL_Z:
             this.undo();
-            return false; 
+            return false;
         case KEYS.CTRL_Y:
             this.redo();
-            return false; 
+            return false;
 
         // --- Clipboard ---
         case KEYS.CTRL_K: // Cut Line (Traditional)
@@ -331,7 +338,7 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             this.pasteLine();
             return true;
         case KEYS.CTRL_X: // Cut Selection
-            this.cutSelection(); 
+            this.cutSelection();
             return true;
         case KEYS.CTRL_V: // Paste Selection
             this.pasteSelection();
@@ -342,9 +349,9 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
             if (key.length === 1 && key >= ' ' && key <= '~') {
                 this.clearSearchResults();
                 this.handleCharacterKey(key);
-                return true; 
+                return true;
             }
-            return false; 
+            return false;
     }
 }
 
@@ -384,10 +391,12 @@ function handleCtrlQ(this: CliEditor): void {
     if (this.isDirty && !this.quitConfirm) {
         this.quitConfirm = true;
         this.setStatusMessage('Warning: Unsaved changes! Press Ctrl+Q again to quit.');
-        setTimeout(() => { this.quitConfirm = false; }, 3000);
+        setTimeout(() => {
+            this.quitConfirm = false;
+        }, 3000);
         return;
     }
-    this.isExiting = true; 
+    this.isExiting = true;
     this.resolvePromise?.({ saved: false, content: this.lines.join('\n') });
 }
 
@@ -419,14 +428,13 @@ async function cutSelection(this: CliEditor): Promise<void> {
  */
 async function handleSave(this: CliEditor): Promise<void> {
     await this.saveFile(); // Save file (sets isDirty=false)
-    
-    // Only resolve if not already exiting 
-    if (!this.isExiting) { 
+
+    // Only resolve if not already exiting
+    if (!this.isExiting) {
         this.isExiting = true;
         this.resolvePromise?.({ saved: true, content: this.lines.join('\n') });
     }
 }
-
 
 /**
  * Handles Search Mode input keys (for 'search_find' and 'search_replace').
@@ -444,12 +452,12 @@ function handleSearchKeys(this: CliEditor, key: string): void {
     switch (key) {
         case KEYS.ENTER:
             if (this.mode === 'search_find') {
-                if (this.replaceQuery === null) { 
+                if (this.replaceQuery === null) {
                     // Find-Only Flow: Execute search and find first
                     this.executeSearch();
                     this.mode = 'edit';
                     this.findNext();
-                } else { 
+                } else {
                     // Replace Flow: Transition to get replace string
                     this.mode = 'search_replace';
                     this.setStatusMessage('Replace with: ');
@@ -482,10 +490,12 @@ function handleSearchKeys(this: CliEditor, key: string): void {
                 }
             }
     }
-    
+
     // Update status bar message live (if not cancelling)
     if (this.mode === 'search_find') {
-        this.setStatusMessage((this.replaceQuery === null ? 'Find: ' : 'Find: ') + this.searchQuery);
+        this.setStatusMessage(
+            (this.replaceQuery === null ? 'Find: ' : 'Find: ') + this.searchQuery,
+        );
     } else if (this.mode === 'search_replace') {
         this.setStatusMessage('Replace with: ' + this.replaceQuery);
     }
@@ -556,7 +566,6 @@ function handleGoToLineKeys(this: CliEditor, key: string): void {
             }
     }
 }
-
 
 export const keyHandlingMethods: TKeyHandlingMethods = {
     handleKeypressEvent,

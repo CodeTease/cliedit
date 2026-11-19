@@ -27,7 +27,9 @@
     "test": "bun test",
     "typecheck": "bun check",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "format": "bun fmt",
+    "format:check": "bun fmt --check"
   },
   "keywords": [
     "cli",

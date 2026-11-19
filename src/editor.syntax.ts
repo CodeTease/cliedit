@@ -1,4 +1,3 @@
-
 // src/editor.syntax.ts
 import { CliEditor } from './editor.js';
 import { parseLineSyntax } from './syntax.common.js';
@@ -7,7 +6,11 @@ import { parseLineSyntax } from './syntax.common.js';
  * Single-pass character scanner to generate a color map for a line.
  * Implements "Poor Man's Syntax Highlighting" focusing on Brackets and Quotes.
  */
-function getLineSyntaxColor(this: CliEditor, lineIndex: number, lineContent: string): Map<number, string> {
+function getLineSyntaxColor(
+    this: CliEditor,
+    lineIndex: number,
+    lineContent: string,
+): Map<number, string> {
     // Check cache first
     if (this.syntaxCache.has(lineIndex)) {
         return this.syntaxCache.get(lineIndex)!;
@@ -17,7 +20,7 @@ function getLineSyntaxColor(this: CliEditor, lineIndex: number, lineContent: str
     // the frame is not blocked, and the worker replies trigger a repaint.
     if (this.syntaxWorker) {
         this.syntaxWorker.postMessage({ lineIndex, content: lineContent });
-        
+
         // The empty map doubles as a "request in flight" marker so render() does
         // not re-post the same line every frame. The worker reply overwrites it.
         // Lines edited since the request are covered by invalidateSyntaxCache().
@@ -42,5 +45,5 @@ function invalidateSyntaxCache(this: CliEditor): void {
 
 export const syntaxMethods = {
     getLineSyntaxColor,
-    invalidateSyntaxCache
+    invalidateSyntaxCache,
 };

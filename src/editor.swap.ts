@@ -75,17 +75,17 @@ export class SwapManager {
     }
 
     public static async check(filepath: string): Promise<boolean> {
-         const swapPath = SwapManager.getSwapPath(filepath);
-         try {
-             await fs.access(swapPath);
-             return true;
-         } catch {
-             return false;
-         }
+        const swapPath = SwapManager.getSwapPath(filepath);
+        try {
+            await fs.access(swapPath);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     public static async read(filepath: string): Promise<string> {
-         const swapPath = SwapManager.getSwapPath(filepath);
-         return fs.readFile(swapPath, 'utf-8');
+        const swapPath = SwapManager.getSwapPath(filepath);
+        return fs.readFile(swapPath, 'utf-8');
     }
 }

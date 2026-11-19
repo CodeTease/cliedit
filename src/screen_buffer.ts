@@ -65,14 +65,14 @@ export class ScreenBuffer {
         // After a resize the current buffer no longer describes the screen, so
         // the full grid must be repainted.
         if (this.forceRedraw) {
-             output += ANSI.CLEAR_SCREEN; // Clear entire screen
-             // Reset current buffer to allow diffing to fill everything
-             for(let y=0; y<this.rows; y++) {
-                 for(let x=0; x<this.cols; x++) {
-                     this.currentBuffer[y][x] = { char: '', style: 'INVALID' }; 
-                 }
-             }
-             this.forceRedraw = false;
+            output += ANSI.CLEAR_SCREEN; // Clear entire screen
+            // Reset current buffer to allow diffing to fill everything
+            for (let y = 0; y < this.rows; y++) {
+                for (let x = 0; x < this.cols; x++) {
+                    this.currentBuffer[y][x] = { char: '', style: 'INVALID' };
+                }
+            }
+            this.forceRedraw = false;
         }
 
         for (let y = 0; y < this.rows; y++) {
@@ -83,9 +83,9 @@ export class ScreenBuffer {
                 if (next.char !== curr.char || next.style !== curr.style) {
                     // 1. Move Cursor if needed
                     if (y !== lastY || x !== lastX + 1) {
-                         output += `\x1b[${y + 1};${x + 1}H`;
+                        output += `\x1b[${y + 1};${x + 1}H`;
                     }
-                    
+
                     // 2. Set Style if needed
                     if (next.style !== lastStyle) {
                         // Each cell in nextBuffer carries its complete style, so
@@ -97,7 +97,7 @@ export class ScreenBuffer {
 
                     // 3. Write Char
                     output += next.char;
-                    
+
                     // 4. Update State
                     this.currentBuffer[y][x] = { ...next };
                     lastY = y;
@@ -105,15 +105,15 @@ export class ScreenBuffer {
                 }
             }
         }
-        
+
         // Reset style at the end of flush to be safe
         if (lastStyle !== '') {
             output += ANSI.RESET_COLORS;
         }
-        
+
         // ScreenBuffer does not position the physical cursor; render() does that
         // after flush() so the cursor lands on the document cursor.
-        
+
         if (output.length > 0) {
             process.stdout.write(output);
         }

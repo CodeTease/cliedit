@@ -1,4 +1,3 @@
-
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createMockEditor } from './test_utils.js';
 import { navigationMethods } from '../src/editor.navigation.js';
@@ -52,7 +51,7 @@ describe('Editor Navigation', () => {
         // Content Width = 10 - 2 = 8.
         // Line 1: 'Line 1' (6 chars) -> 1 visual row.
         // Line 2: 'Line 2' (6 chars) -> 1 visual row.
-        
+
         it('should move down visually', () => {
             editor.moveCursorVisually(1);
             expect(editor.cursorY).toBe(1);
@@ -69,37 +68,37 @@ describe('Editor Navigation', () => {
         it('should handle wrapping logic in visual movement', () => {
             // Make a long line
             // Width 8.
-            // '1234567890' -> 
+            // '1234567890' ->
             // Row 1: '12345678'
             // Row 2: '90'
             editor.lines = ['1234567890', 'Next'];
             editor.cursorY = 0;
             editor.cursorX = 0;
-            
+
             // Move down 1 visual row (should be same logical line, wrapped part)
             editor.moveCursorVisually(1);
             expect(editor.cursorY).toBe(0);
             expect(editor.cursorX).toBe(8); // Start of 2nd chunk
-            
+
             // Move down again (should be next logical line)
             editor.moveCursorVisually(1);
             expect(editor.cursorY).toBe(1);
             expect(editor.cursorX).toBe(0); // Matches visual offset 0
         });
-        
+
         it('should maintain visual X offset', () => {
             // Width 8
             editor.lines = ['1234567890', '1234567890'];
             editor.cursorY = 0;
             editor.cursorX = 2; // Visual X = 2
-            
+
             // Move down to wrapped part
             editor.moveCursorVisually(1);
             expect(editor.cursorY).toBe(0);
             // Chunk starts at 8. We want visual X=2. So logical X = 8+2 = 10.
             // But line length is 10. Max index is 10 (after last char).
             expect(editor.cursorX).toBe(10);
-            
+
             // Move down to next line
             editor.moveCursorVisually(1);
             expect(editor.cursorY).toBe(1);
@@ -120,13 +119,13 @@ describe('Editor Navigation', () => {
             // landing on the first character of the next word.
             expect(editor.cursorX).toBe(6);
         });
-        
+
         it('should move left by word', () => {
-             editor.cursorX = 6; // 'W' of Word2
-             editor.moveCursorByWord('left');
-             // Skips the preceding spaces, then the rest of the previous word,
-             // landing on its first character.
-             expect(editor.cursorX).toBe(0);
+            editor.cursorX = 6; // 'W' of Word2
+            editor.moveCursorByWord('left');
+            // Skips the preceding spaces, then the rest of the previous word,
+            // landing on its first character.
+            expect(editor.cursorX).toBe(0);
         });
     });
 
@@ -135,10 +134,10 @@ describe('Editor Navigation', () => {
             editor.lines = Array(10).fill('Line');
             editor.screenRows = 3;
             editor.jumpToLine(5);
-            
+
             expect(editor.cursorY).toBe(4); // 0-based
             expect(editor.cursorX).toBe(0);
-            
+
             // Scroll adjustment:
             // Visual Row Index of line 5 is 4 (if no wrapping).
             // rowOffset = max(0, 4 - floor(3/2)) = 4 - 1 = 3.

@@ -12,10 +12,10 @@ import { DocumentState } from './types.js';
  */
 function getCurrentState(this: CliEditor): DocumentState {
     return {
-      // Use JSON to deep clone the lines array
-      lines: JSON.parse(JSON.stringify(this.lines)), 
-      cursorX: this.cursorX,
-      cursorY: this.cursorY,
+        // Use JSON to deep clone the lines array
+        lines: JSON.parse(JSON.stringify(this.lines)),
+        cursorX: this.cursorX,
+        cursorY: this.cursorY,
     };
 }
 
@@ -48,8 +48,7 @@ function undo(this: CliEditor): void {
         this.setDirty();
         this.invalidateSyntaxCache();
         this.setStatusMessage('Undo successful');
-    }
-    else {
+    } else {
         this.setStatusMessage('Already at oldest change');
     }
 }
@@ -64,8 +63,7 @@ function redo(this: CliEditor): void {
         this.setDirty();
         this.invalidateSyntaxCache();
         this.setStatusMessage('Redo successful');
-    }
-    else {
+    } else {
         this.setStatusMessage('Already at newest change');
     }
 }

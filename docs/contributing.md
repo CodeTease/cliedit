@@ -71,6 +71,35 @@ bun run lint:fix  # eslint src/ --fix
 ESLint covers `src/` only and skips `src/vendor/`. CI treats lint as advisory
 (`bun lint || exit 0`), but keep the tree clean.
 
+### Formatting
+
+Formatting uses **Bun's built-in formatter**; there is no Prettier or oxfmt dependency.
+Configuration lives in [`bunfig.toml`](../bunfig.toml).
+
+```bash
+bun run format        # rewrite files that need it
+bun run format:check  # list drift and exit 1 without writing
+```
+
+`bun fmt` covers JavaScript, TypeScript, JSON, YAML and TOML — so `src/`, `tests/`,
+`tsconfig.json`, `eslint.config.js` and `.github/workflows/` are all in scope.
+`dist/`, `node_modules/`, `*.swp` and `*.txt` are skipped through `.gitignore`.
+
+The configured style is 100 columns, single quotes, semicolons and
+`trailingComma = "all"`. Indentation is 2 spaces at the base with a 4-space override
+for `src/editor.*.ts`, `src/screen_buffer.ts`, `src/syntax.common.ts`,
+`src/syntax.worker.ts`, `src/types.ts` and `tests/**`. **A new 4-space module in `src/`
+must be added to that override list**, otherwise the formatter will reindent it to 2.
+`src/vendor/` is ignored so the vendored `keypress` code stays diffable against upstream,
+and `*.md` is ignored so the TypeScript samples in these docs keep the 4-space style they
+document.
+
+Do not hand-align code: run `bun run format` and commit the result.
+
+> The scripts are `format` / `format:check`, not `fmt`. If `package.json` defines a `fmt`
+> script, `bun fmt` executes that script instead of formatting, so a bare `bun fmt` would
+> not behave as expected.
+
 ## Guidelines
 
 - **Zero runtime dependencies.** Solve small problems with Node core modules.
@@ -90,8 +119,10 @@ ESLint covers `src/` only and skips `src/vendor/`. CI treats lint as advisory
   because `handleKeypressEvent()` does it when the handler reports a change.
 - **Imports use `.js` specifiers** (`from './types.js'`), because the project compiles with
   `moduleResolution: NodeNext`.
-- **Match the surrounding formatting.** Two spaces in `editor.ts`/`index.ts`, four spaces in
-  the `editor.*` mixins and `screen_buffer.ts`; single quotes, semicolons.
+- **Formatting.** Run `bun run format`; it is configured in `bunfig.toml` (100 columns,
+  single quotes, semicolons, 2-space base with a 4-space override for the mixins and
+  tests). Match the surrounding file's indentation when moving code between modules, and
+  never hand-align what the formatter will rewrite.
 - **Comments explain why, not what.** No TODOs, banners, or narration.
 
 ## Before Opening a Pull Request
@@ -100,4 +131,5 @@ ESLint covers `src/` only and skips `src/vendor/`. CI treats lint as advisory
 bun run build
 bun test
 bun run lint
+bun run format:check
 ```

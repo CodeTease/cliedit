@@ -14,7 +14,7 @@ export const ANSI = {
   DIM: '\x1b[2m', // Dim mode (faint)
   ENTER_ALTERNATE_SCREEN: '\x1b[?1049h', // Enter alternate screen
   EXIT_ALTERNATE_SCREEN: '\x1b[?1049l', // Exit alternate screen
-  
+
   // Syntax Highlighting Colors
   YELLOW: '\x1b[33m',
   CYAN: '\x1b[36m',
@@ -46,7 +46,7 @@ export const KEYS = {
   CTRL_ARROW_DOWN: 'C-down',
   CTRL_ARROW_RIGHT: 'C-right',
   CTRL_ARROW_LEFT: 'C-left',
-  
+
   // Standard Keys
   ENTER: '\r', // Carriage Return
   BACKSPACE: '\x7f', // DEL (usually Backspace)
@@ -58,13 +58,13 @@ export const KEYS = {
   ARROW_RIGHT: 'right',
   ARROW_LEFT: 'left',
   DELETE: 'delete',
-  HOME: 'home', 
-  END: 'end', 
+  HOME: 'home',
+  END: 'end',
   PAGE_UP: 'pageup',
   PAGE_DOWN: 'pagedown',
   TAB: '\t',
   SHIFT_TAB: 'SHIFT_TAB', // Internal representation
-  ALT_UP: 'ALT_UP',       // Internal representation
-  ALT_DOWN: 'ALT_DOWN',   // Internal representation
+  ALT_UP: 'ALT_UP', // Internal representation
+  ALT_DOWN: 'ALT_DOWN', // Internal representation
   CTRL_D: '\x04',
 };

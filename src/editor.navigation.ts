@@ -12,18 +12,18 @@ import { CliEditor } from './editor.js';
  */
 function findCurrentVisualRowIndex(this: CliEditor): number {
     const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
-    
+
     let visualRowIndex = 0;
-    
+
     // Sum visual height of all lines before current cursorY
     for (let i = 0; i < this.cursorY; i++) {
         visualRowIndex += this.getLineVisualHeight(i);
     }
-    
+
     // Add the visual offset within the current line: cursorX 250 on a
     // 100-column line sits on visual row 2 of that line.
     visualRowIndex += Math.floor(this.cursorX / contentWidth);
-    
+
     return visualRowIndex;
 }
 
@@ -32,20 +32,20 @@ function findCurrentVisualRowIndex(this: CliEditor): number {
  */
 function moveCursorLogically(this: CliEditor, dx: number): void {
     if (dx === -1) {
-      if (this.cursorX > 0) {
-        this.cursorX--;
-      } else if (this.cursorY > 0) {
-        this.cursorY--;
-        this.cursorX = this.lines[this.cursorY].length;
-      }
+        if (this.cursorX > 0) {
+            this.cursorX--;
+        } else if (this.cursorY > 0) {
+            this.cursorY--;
+            this.cursorX = this.lines[this.cursorY].length;
+        }
     } else if (dx === 1) {
-      const lineLength = this.lines[this.cursorY].length;
-      if (this.cursorX < lineLength) {
-        this.cursorX++;
-      } else if (this.cursorY < this.lines.length - 1) {
-        this.cursorY++;
-        this.cursorX = 0;
-      }
+        const lineLength = this.lines[this.cursorY].length;
+        if (this.cursorX < lineLength) {
+            this.cursorX++;
+        } else if (this.cursorY < this.lines.length - 1) {
+            this.cursorY++;
+            this.cursorX = 0;
+        }
     }
 }
 
@@ -54,17 +54,17 @@ function moveCursorLogically(this: CliEditor, dx: number): void {
  */
 function moveCursorVisually(this: CliEditor, dy: number): void {
     const currentVisualRow = this.findCurrentVisualRowIndex();
-    
+
     // Prevent moving out of bounds (top)
     if (dy < 0 && currentVisualRow === 0) return;
-    
+
     // There is no cheap bounds check at the bottom; getLogicalFromVisual()
     // clamps to the last line and the position is clamped below.
     const targetVisualRow = Math.max(0, currentVisualRow + dy);
-    
+
     // Determine logical position of target visual row
     const targetPos = this.getLogicalFromVisual(targetVisualRow);
-    
+
     // If we went past the end, clamp to end
     if (targetPos.logicalY > this.lines.length - 1) {
         this.cursorY = this.lines.length - 1;
@@ -73,19 +73,19 @@ function moveCursorVisually(this: CliEditor, dy: number): void {
     }
 
     this.cursorY = targetPos.logicalY;
-    
+
     const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
-    
+
     // We want to maintain visual X (column on screen)
     // Current visual X offset in the row
     const currentVisualXOffset = this.cursorX % contentWidth;
-    
+
     // Target logical X start for that visual row chunk
     const targetChunkStart = targetPos.visualYOffset * contentWidth;
-    
+
     // New cursor X
     this.cursorX = targetChunkStart + currentVisualXOffset;
-    
+
     // Clamp to line length
     const lineLength = this.lines[this.cursorY].length;
     if (this.cursorX > lineLength) {
@@ -109,10 +109,10 @@ function findVisualRowEnd(this: CliEditor): number {
     const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
     const chunkIndex = Math.floor(this.cursorX / contentWidth);
     const lineLength = this.lines[this.cursorY].length;
-    
+
     const chunkStart = chunkIndex * contentWidth;
     const chunkEnd = chunkStart + contentWidth;
-    
+
     return Math.min(lineLength, chunkEnd);
 }
 
@@ -123,13 +123,13 @@ function adjustCursorPosition(this: CliEditor): void {
     // Clamp Y
     if (this.cursorY < 0) this.cursorY = 0;
     if (this.cursorY >= this.lines.length) {
-      this.cursorY = Math.max(0, this.lines.length - 1);
+        this.cursorY = Math.max(0, this.lines.length - 1);
     }
     // Clamp X
     const lineLength = this.lines[this.cursorY]?.length || 0;
     if (this.cursorX < 0) this.cursorX = 0;
     if (this.cursorX > lineLength) {
-      this.cursorX = lineLength;
+        this.cursorX = lineLength;
     }
 }
 
@@ -138,14 +138,14 @@ function adjustCursorPosition(this: CliEditor): void {
  */
 function scroll(this: CliEditor): void {
     const currentVisualRow = this.findCurrentVisualRowIndex();
-    
+
     // Scroll up
     if (currentVisualRow < this.rowOffset) {
-      this.rowOffset = currentVisualRow;
+        this.rowOffset = currentVisualRow;
     }
     // Scroll down
     if (currentVisualRow >= this.rowOffset + this.screenRows) {
-      this.rowOffset = currentVisualRow - this.screenRows + 1;
+        this.rowOffset = currentVisualRow - this.screenRows + 1;
     }
 }
 
@@ -154,15 +154,15 @@ function scroll(this: CliEditor): void {
  */
 function jumpToLine(this: CliEditor, lineNumber: number): void {
     const targetY = lineNumber - 1; // Convert 1-based to 0-based index
-    
+
     // Clamp targetY to valid range
     this.cursorY = Math.max(0, Math.min(targetY, this.lines.length - 1));
     this.cursorX = 0; // Move to start of line
-    
+
     // Adjust scroll
     const visualRowIndex = this.findCurrentVisualRowIndex();
     this.rowOffset = Math.max(0, visualRowIndex - Math.floor(this.screenRows / 2));
-    
+
     this.mode = 'edit';
     this.setStatusMessage(`Jumped to line ${lineNumber}`, 1000);
 }
@@ -210,16 +210,16 @@ function matchBracket(this: CliEditor): void {
     const char = line[this.cursorX];
     const pairs: Record<string, string> = { '(': ')', '[': ']', '{': '}' };
     const revPairs: Record<string, string> = { ')': '(', ']': '[', '}': '{' };
-    
+
     if (pairs[char]) {
         let depth = 1;
         for (let y = this.cursorY; y < this.lines.length; y++) {
             const l = this.lines[y];
-            const startX = (y === this.cursorY) ? this.cursorX + 1 : 0;
+            const startX = y === this.cursorY ? this.cursorX + 1 : 0;
             for (let x = startX; x < l.length; x++) {
                 if (l[x] === char) depth++;
                 else if (l[x] === pairs[char]) depth--;
-                
+
                 if (depth === 0) {
                     this.cursorY = y;
                     this.cursorX = x;
@@ -232,11 +232,11 @@ function matchBracket(this: CliEditor): void {
         let depth = 1;
         for (let y = this.cursorY; y >= 0; y--) {
             const l = this.lines[y];
-            const startX = (y === this.cursorY) ? this.cursorX - 1 : l.length - 1;
+            const startX = y === this.cursorY ? this.cursorX - 1 : l.length - 1;
             for (let x = startX; x >= 0; x--) {
                 if (l[x] === char) depth++;
                 else if (l[x] === revPairs[char]) depth--;
-                
+
                 if (depth === 0) {
                     this.cursorY = y;
                     this.cursorX = x;

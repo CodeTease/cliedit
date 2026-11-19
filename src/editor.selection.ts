@@ -4,8 +4,8 @@ import { CliEditor } from './editor.js';
 
 // Defines the normalized selection range where start is always before end
 export type NormalizedRange = {
-    start: { x: number, y: number }, 
-    end: { x: number, y: number } 
+    start: { x: number; y: number };
+    end: { x: number; y: number };
 };
 
 // Export the type of the methods object for TypeScript merging
@@ -17,7 +17,6 @@ export type TSelectionMethods = {
     getSelectedText: () => string;
     deleteSelectedText: () => void;
 };
-
 
 /**
  * Methods related to Text Selection management.
@@ -59,7 +58,12 @@ function getNormalizedSelection(this: CliEditor): NormalizedRange | null {
 /**
  * Checks if a logical position (Y, X) is inside the normalized selection range.
  */
-function isPositionInSelection(this: CliEditor, logicalY: number, logicalX: number, range: NormalizedRange): boolean {
+function isPositionInSelection(
+    this: CliEditor,
+    logicalY: number,
+    logicalX: number,
+    range: NormalizedRange,
+): boolean {
     if (logicalY < range.start.y || logicalY > range.end.y) return false;
 
     // Check if the position is on the start line
@@ -84,8 +88,8 @@ function getSelectedText(this: CliEditor): string {
     for (let y = range.start.y; y <= range.end.y; y++) {
         const line = this.lines[y] || '';
 
-        const startX = (y === range.start.y) ? range.start.x : 0;
-        let endX = (y === range.end.y) ? range.end.x : line.length;
+        const startX = y === range.start.y ? range.start.x : 0;
+        let endX = y === range.end.y ? range.end.x : line.length;
 
         // Ensure we don't try to select past the actual line length
         endX = Math.min(endX, line.length);
@@ -113,16 +117,16 @@ function deleteSelectedText(this: CliEditor): boolean {
     if (!range) return false;
 
     const { start, end } = range;
-    
+
     // 1. Join the remaining parts:
     //    Part 1: Start line content before selection start
     const startLineContent = this.lines[start.y].substring(0, start.x);
     //    Part 2: End line content after selection end
     const endLineContent = this.lines[end.y].substring(end.x);
-    
+
     // 2. Set the content of the start line to the joined content
     this.lines[start.y] = startLineContent + endLineContent;
-    
+
     // 3. Remove all lines between start.y and end.y (exclusive)
     const linesToDeleteCount = end.y - start.y;
     if (linesToDeleteCount > 0) {

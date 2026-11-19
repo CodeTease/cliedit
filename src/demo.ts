@@ -44,7 +44,7 @@ async function runDemo() {
 
     // Give the terminal a moment to switch back from the alternate screen
     // before printing, otherwise output can interleave with the TUI teardown.
-    await new Promise(res => setTimeout(res, 50));
+    await new Promise((res) => setTimeout(res, 50));
 
     // Output result
     console.log('\n--- Editor Closed ---');
@@ -58,7 +58,7 @@ async function runDemo() {
     }
   } catch (error) {
     // Clean up TTY output if a critical error occurred
-    await new Promise(res => setTimeout(res, 50));
+    await new Promise((res) => setTimeout(res, 50));
     console.error('\n--- A critical error occurred ---');
     console.error(error);
   }

@@ -38,26 +38,29 @@ function executeSearch(this: CliEditor): void {
     this.searchResultMap.clear();
 
     if (this.searchQuery === '') return;
-    
+
     const queryLen = this.searchQuery.length;
 
     for (let y = 0; y < this.lines.length; y++) {
-      const line = this.lines[y];
-      let index = -1;
-      const lineMatches: { start: number; end: number }[] = [];
+        const line = this.lines[y];
+        let index = -1;
+        const lineMatches: { start: number; end: number }[] = [];
 
-      while ((index = line.indexOf(this.searchQuery, index + 1)) !== -1) {
-        this.searchResults.push({ y, x: index });
-        lineMatches.push({ start: index, end: index + queryLen });
-      }
+        while ((index = line.indexOf(this.searchQuery, index + 1)) !== -1) {
+            this.searchResults.push({ y, x: index });
+            lineMatches.push({ start: index, end: index + queryLen });
+        }
 
-      if (lineMatches.length > 0) {
-        this.searchResultMap.set(y, lineMatches);
-      }
+        if (lineMatches.length > 0) {
+            this.searchResultMap.set(y, lineMatches);
+        }
     }
     this.searchResultIndex = -1;
-    if (this.replaceQuery === null) { // Find-only flow
-        this.setStatusMessage(`Found ${this.searchResults.length} results for "${this.searchQuery}"`);
+    if (this.replaceQuery === null) {
+        // Find-only flow
+        this.setStatusMessage(
+            `Found ${this.searchResults.length} results for "${this.searchQuery}"`,
+        );
     }
 }
 
@@ -80,12 +83,12 @@ function findNext(this: CliEditor): void {
     }
 
     this.searchResultIndex++;
-    
+
     if (this.searchResultIndex >= this.searchResults.length) {
         this.setStatusMessage('End of file reached. Starting from top.');
         this.searchResultIndex = 0;
     }
-    
+
     const result = this.searchResults[this.searchResultIndex];
     this.jumpToResult(result);
 
@@ -107,13 +110,13 @@ function replaceCurrentAndFindNext(this: CliEditor): void {
         this.findNext();
         return;
     }
-    
+
     const result = this.searchResults[this.searchResultIndex];
     const line = this.lines[result.y];
-    
+
     const before = line.substring(0, result.x);
     const after = line.substring(result.x + this.searchQuery.length);
-    
+
     // Use replaceQuery (it's guaranteed to be a string here, not null)
     this.lines[result.y] = before + this.replaceQuery! + after;
     this.setDirty();
@@ -167,14 +170,14 @@ function replaceAll(this: CliEditor): void {
     for (let i = this.searchResults.length - 1; i >= 0; i--) {
         const result = this.searchResults[i];
         const line = this.lines[result.y];
-        
+
         const before = line.substring(0, result.x);
         const after = line.substring(result.x + this.searchQuery.length);
-        
+
         this.lines[result.y] = before + this.replaceQuery! + after;
         count++;
     }
-    
+
     this.setDirty();
     this.mode = 'edit';
     this.searchResults = [];
@@ -182,15 +185,14 @@ function replaceAll(this: CliEditor): void {
     this.setStatusMessage(`Replaced ${count} occurrences.`);
 }
 
-
 /**
  * Moves cursor and adjusts scroll offset to make the result visible.
  */
-function jumpToResult(this: CliEditor, result: { y: number, x: number }): void {
+function jumpToResult(this: CliEditor, result: { y: number; x: number }): void {
     this.cursorY = result.y;
     this.cursorX = result.x;
     const visualRowIndex = this.findCurrentVisualRowIndex();
-    
+
     // Calculate new scroll offset to center the result visually
     this.rowOffset = Math.max(0, visualRowIndex - Math.floor(this.screenRows / 2));
 }

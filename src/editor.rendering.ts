@@ -17,7 +17,7 @@ function updateGutterWidth(this: CliEditor): void {
     // Example: 10000 lines -> 5 digits + 3 = width 8.
     // Minimum width is kept at 5 (default).
     const requiredWidth = lineCount.toString().length + 3;
-    
+
     // Update the editor's gutter width state
     this.gutterWidth = Math.max(5, requiredWidth);
 }
@@ -31,7 +31,7 @@ function getLineVisualHeight(this: CliEditor, lineIndex: number): number {
     if (line === undefined) return 1;
     // Empty line takes 1 row
     if (line.length === 0) return 1;
-    
+
     const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
     return Math.ceil(line.length / contentWidth);
 }
@@ -43,24 +43,27 @@ function getLineVisualHeight(this: CliEditor, lineIndex: number): number {
  * @param visualY The global visual row index (0-based).
  * @returns Object containing logicalY and the visual offset within that line.
  */
-function getLogicalFromVisual(this: CliEditor, visualY: number): { logicalY: number; visualYOffset: number } {
+function getLogicalFromVisual(
+    this: CliEditor,
+    visualY: number,
+): { logicalY: number; visualYOffset: number } {
     let currentVisualY = 0;
-    
+
     for (let i = 0; i < this.lines.length; i++) {
         const height = this.getLineVisualHeight(i);
         if (currentVisualY + height > visualY) {
             return {
                 logicalY: i,
-                visualYOffset: visualY - currentVisualY
+                visualYOffset: visualY - currentVisualY,
             };
         }
         currentVisualY += height;
     }
-    
+
     // If out of bounds, return the last line's end
-    return { 
-        logicalY: this.lines.length - 1, 
-        visualYOffset: Math.max(0, this.getLineVisualHeight(this.lines.length - 1) - 1)
+    return {
+        logicalY: this.lines.length - 1,
+        visualYOffset: Math.max(0, this.getLineVisualHeight(this.lines.length - 1) - 1),
     };
 }
 
@@ -76,24 +79,28 @@ function render(this: CliEditor): void {
 
     // clear() blanks the next buffer; empty cells then erase stale content.
     this.screenBuffer.clear();
-    
+
     // Recalculate content width with the NEW gutter width
     const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
-    
+
     // Find the starting logical line and offset based on rowOffset (which is visual)
     const startPos = this.getLogicalFromVisual(this.rowOffset);
     let logicalY = startPos.logicalY;
     let visualOffsetInLine = startPos.visualYOffset;
 
     let visualRowsRendered = 0;
-    
+
     const selectionRange = this.getNormalizedSelection();
 
     // Scrollbar calculations
     const totalLines = this.lines.length;
-    const showScrollbar = totalLines > this.screenRows; 
-    const thumbHeight = showScrollbar ? Math.max(1, Math.floor((this.screenRows / totalLines) * this.screenRows)) : 0;
-    const thumbStart = showScrollbar ? Math.floor((startPos.logicalY / totalLines) * this.screenRows) : 0;
+    const showScrollbar = totalLines > this.screenRows;
+    const thumbHeight = showScrollbar
+        ? Math.max(1, Math.floor((this.screenRows / totalLines) * this.screenRows))
+        : 0;
+    const thumbStart = showScrollbar
+        ? Math.floor((startPos.logicalY / totalLines) * this.screenRows)
+        : 0;
 
     // Render Loop
     while (visualRowsRendered < this.screenRows) {
@@ -101,7 +108,7 @@ function render(this: CliEditor): void {
 
         // Stop if we run out of content
         if (logicalY >= this.lines.length) {
-            this.screenBuffer.put(0, screenY, '~', ANSI.CYAN); 
+            this.screenBuffer.put(0, screenY, '~', ANSI.CYAN);
             visualRowsRendered++;
             continue;
         }
@@ -110,34 +117,41 @@ function render(this: CliEditor): void {
         const lineVisualHeight = this.getLineVisualHeight(logicalY);
 
         // Render chunks for this logical line starting from visualOffsetInLine
-        for (let v = visualOffsetInLine; v < lineVisualHeight && visualRowsRendered < this.screenRows; v++) {
+        for (
+            let v = visualOffsetInLine;
+            v < lineVisualHeight && visualRowsRendered < this.screenRows;
+            v++
+        ) {
             const currentScreenY = this.screenStartRow + visualRowsRendered - 1; // 0-based index for buffer
 
             // Calculate slice of string
             const chunkStart = v * contentWidth;
             const chunkEnd = Math.min(chunkStart + contentWidth, line.length);
             // Handle empty line case
-            const chunk = (line.length === 0 && v === 0) ? '' : line.substring(chunkStart, chunkEnd);
-            
+            const chunk = line.length === 0 && v === 0 ? '' : line.substring(chunkStart, chunkEnd);
+
             // 1. Draw Gutter
             // Ensure padding logic uses the current gutterWidth
-            const gutterStr = (v === 0) 
-              ? `${logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
-              : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
-            
-            this.screenBuffer.putString(0, currentScreenY, gutterStr, ANSI.DIM); 
+            const gutterStr =
+                v === 0
+                    ? `${logicalY + 1}`.padStart(this.gutterWidth - 2, ' ') + ' | '
+                    : ' '.padStart(this.gutterWidth - 2, ' ') + ' | ';
+
+            this.screenBuffer.putString(0, currentScreenY, gutterStr, ANSI.DIM);
 
             // 2. Syntax Highlighting & Char Rendering
             const syntaxColorMap = this.getLineSyntaxColor(logicalY, line);
-            
+
             for (let i = 0; i < chunk.length; i++) {
                 const char = chunk[i];
                 const logicalX = chunkStart + i;
                 const bufferX = this.gutterWidth + i;
-                
-                const isCursorPosition = (logicalY === this.cursorY) && (logicalX === this.cursorX);
-                const isSelected = selectionRange && this.isPositionInSelection(logicalY, logicalX, selectionRange);
-                
+
+                const isCursorPosition = logicalY === this.cursorY && logicalX === this.cursorX;
+                const isSelected =
+                    selectionRange &&
+                    this.isPositionInSelection(logicalY, logicalX, selectionRange);
+
                 // Search Highlight Logic
                 let isGlobalSearchResult = false;
                 if (this.searchResultMap.has(logicalY)) {
@@ -150,12 +164,12 @@ function render(this: CliEditor): void {
                     }
                 }
 
-                const isCurrentSearchResult = (
+                const isCurrentSearchResult =
                     this.searchResultIndex !== -1 &&
                     this.searchResults[this.searchResultIndex]?.y === logicalY &&
                     logicalX >= this.searchResults[this.searchResultIndex]?.x &&
-                    logicalX < (this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length)
-                );
+                    logicalX <
+                        this.searchResults[this.searchResultIndex]?.x + this.searchQuery.length;
 
                 const syntaxColor = syntaxColorMap.get(logicalX) || '';
 
@@ -172,23 +186,34 @@ function render(this: CliEditor): void {
                 } else if (syntaxColor) {
                     style = syntaxColor;
                 }
-                
+
                 this.screenBuffer.put(bufferX, currentScreenY, char, style);
             }
 
             // Handle Cursor at End of Line
-            if (logicalY === this.cursorY && this.cursorX === line.length && chunkEnd === line.length) {
+            if (
+                logicalY === this.cursorY &&
+                this.cursorX === line.length &&
+                chunkEnd === line.length
+            ) {
                 // Determine X position for the space
                 const spaceX = this.gutterWidth + (line.length - chunkStart);
                 this.screenBuffer.put(spaceX, currentScreenY, ' ', ANSI.INVERT_COLORS);
             }
-            
+
             // Draw Scrollbar
             if (showScrollbar) {
-                const isThumb = visualRowsRendered >= thumbStart && visualRowsRendered < thumbStart + thumbHeight;
-                const scrollChar = isThumb ? '┃' : '│'; 
+                const isThumb =
+                    visualRowsRendered >= thumbStart &&
+                    visualRowsRendered < thumbStart + thumbHeight;
+                const scrollChar = isThumb ? '┃' : '│';
                 // Rightmost column: this.screenCols - 1 (0-based)
-                this.screenBuffer.put(this.screenCols - 1, currentScreenY, scrollChar, ANSI.RESET_COLORS);
+                this.screenBuffer.put(
+                    this.screenCols - 1,
+                    currentScreenY,
+                    scrollChar,
+                    ANSI.RESET_COLORS,
+                );
             }
 
             visualRowsRendered++;
@@ -196,24 +221,24 @@ function render(this: CliEditor): void {
 
         // Move to next logical line
         logicalY++;
-        visualOffsetInLine = 0; 
+        visualOffsetInLine = 0;
     }
 
     // Draw Status Bar
     this.renderStatusBarToBuffer();
-    
+
     // Flush Screen Buffer
     this.screenBuffer.flush();
-    
+
     // Set physical cursor position (ensure cursor is visible on screen)
-    
-    const cursorGlobalVisualRow = this.findCurrentVisualRowIndex(); 
+
+    const cursorGlobalVisualRow = this.findCurrentVisualRowIndex();
     const relativeVisualRow = cursorGlobalVisualRow - this.rowOffset;
-    
+
     if (relativeVisualRow >= 0 && relativeVisualRow < this.screenRows) {
         const cx = this.cursorX;
         const visualXInChunk = cx % contentWidth;
-        
+
         const displayY = this.screenStartRow + relativeVisualRow;
         const displayX = visualXInChunk + this.gutterWidth + 1;
         process.stdout.write(`\x1b[${displayY};${displayX}H`);
@@ -227,19 +252,19 @@ function setStatusMessage(this: CliEditor, message: string, timeoutMs: number = 
     this.statusMessage = message;
     this.isMessageCustom = message !== this.DEFAULT_STATUS;
     if (this.statusTimeout) {
-      clearTimeout(this.statusTimeout);
-      this.statusTimeout = null;
+        clearTimeout(this.statusTimeout);
+        this.statusTimeout = null;
     }
     if (message !== this.DEFAULT_STATUS && timeoutMs > 0) {
-      this.statusTimeout = setTimeout(() => {
-        this.statusMessage = this.DEFAULT_STATUS;
-        this.isMessageCustom = false;
-        this.statusTimeout = null;
-        if (!this.isCleanedUp) {
-            this.renderStatusBarToBuffer();
-            this.screenBuffer.flush();
-        }
-      }, timeoutMs);
+        this.statusTimeout = setTimeout(() => {
+            this.statusMessage = this.DEFAULT_STATUS;
+            this.isMessageCustom = false;
+            this.statusTimeout = null;
+            if (!this.isCleanedUp) {
+                this.renderStatusBarToBuffer();
+                this.screenBuffer.flush();
+            }
+        }, timeoutMs);
     }
     if (!this.isCleanedUp) {
         this.renderStatusBarToBuffer(); // Just update buffer
@@ -253,7 +278,7 @@ function setStatusMessage(this: CliEditor, message: string, timeoutMs: number = 
 function renderStatusBarToBuffer(this: CliEditor): void {
     const contentWidth = this.screenCols;
     const startY = this.screenRows + this.screenStartRow - 1; // 0-based Y
-    
+
     let status = '';
     // --- Line 1 ---
     switch (this.mode) {
@@ -267,7 +292,7 @@ function renderStatusBarToBuffer(this: CliEditor): void {
             status = 'Go to Line: ' + this.goToLineQuery;
             break;
         case 'search_confirm':
-            status = this.statusMessage; 
+            status = this.statusMessage;
             break;
         case 'edit':
         default: {
@@ -282,23 +307,24 @@ function renderStatusBarToBuffer(this: CliEditor): void {
             break;
         }
     }
-    
+
     // Pad and put line 1
     status = status.padEnd(contentWidth);
     this.screenBuffer.putString(0, startY, status, ANSI.INVERT_COLORS);
 
     // --- Line 2 ---
-    const message = (this.mode === 'edit' ? this.DEFAULT_STATUS : this.statusMessage).padEnd(contentWidth);
+    const message = (this.mode === 'edit' ? this.DEFAULT_STATUS : this.statusMessage).padEnd(
+        contentWidth,
+    );
     this.screenBuffer.putString(0, startY + 1, message, '');
 }
-
 
 /**
  * Legacy string-based status bar render. renderStatusBarToBuffer() replaced it;
  * this stub stays because the mixin interface still exposes the method.
  */
 function renderStatusBar(this: CliEditor): string {
-    return ''; 
+    return '';
 }
 
 export const renderingMethods = {

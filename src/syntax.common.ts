@@ -15,10 +15,10 @@ const STATE_IN_STRING_DOUBLE = 2; // "
 export function parseLineSyntax(lineContent: string): Map<number, string> {
     const colorMap = new Map<number, string>();
     let state = STATE_NORMAL;
-    
+
     for (let i = 0; i < lineContent.length; i++) {
         const char = lineContent[i];
-        
+
         if (state === STATE_NORMAL) {
             if (char === '"') {
                 state = STATE_IN_STRING_DOUBLE;
