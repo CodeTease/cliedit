@@ -27,7 +27,7 @@ jobs:
         run: bun test
       
       - name: Format
-		run: bun run format:check
+        run: bun run format:check
 
       - name: Lint
         run: bun lint || exit 0
