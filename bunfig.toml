@@ -1,0 +1,45 @@
+# Configuration for Bun's built-in formatter, `bun fmt`
+# (https://bun.com/docs/format). Exposed as `bun run format` and
+# `bun run format:check`; there is no Prettier or oxfmt config, so this section
+# is the only source of truth for style.
+#
+# The scripts are named `format`, not `fmt`: when `package.json` contains a
+# `fmt` script, `bun fmt` runs that script instead of the formatter.
+#
+# `dist/`, `node_modules/`, `*.swp` and `*.txt` need no rules here because
+# `bun fmt` honours every `.gitignore` in the repository.
+
+[fmt]
+# The codebase already runs to ~139 columns in places, so Prettier's 80 would
+# rewrap far more than it clarifies.
+printWidth = 100
+tabWidth = 2
+useTabs = false
+semi = true
+singleQuote = true
+trailingComma = "all"
+
+ignorePatterns = [
+  # Vendored third-party code: reformatting it would bury the upstream diff that
+  # re-vendoring depends on.
+  "src/vendor/",
+  # The docs embed TypeScript samples that mirror the real 4-space mixin style,
+  # so formatting them at the base 2 spaces would make every example disagree
+  # with the code it documents.
+  "**/*.md",
+]
+
+# The mixins and tests are written with 4 spaces. Everything else stays on the
+# 2-space base: editor.ts, index.ts, constants.ts, history.ts, demo.ts and the
+# JSON/YAML files. `src/editor.*.ts` deliberately does not match `src/editor.ts`.
+# A new 4-space module in `src/` must be added here or it will be reindented to 2.
+[[fmt.overrides]]
+files = [
+  "src/editor.*.ts",
+  "src/screen_buffer.ts",
+  "src/syntax.common.ts",
+  "src/syntax.worker.ts",
+  "src/types.ts",
+  "tests/**/*.ts",
+]
+options = { tabWidth = 4 }
