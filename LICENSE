@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 CodeTease
+Copyright (c) 2025-2026 CodeTease
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,60 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+# Third-Party Notices
+
+`cliedit` is an open-source project that utilizes components (or modified/converted
+versions thereof) from other open-source projects. We express our deep gratitude to
+the communities and authors who provided the foundation for these components.
+
+All components listed below are included as vendored code (integrated directly into
+the project source code) and have been adapted to fit **cliedit**'s TypeScript
+architecture and remove unnecessary features (e.g., mouse support).
+
+## `keypress`
+
+**Original project name:** `keypress`
+
+**Description & origin:** Provides raw key event parsing logic for the TTY
+environment. The source code was converted from the original JavaScript version and
+optimized for Node.js.
+
+**Repository:** https://github.com/TooTallNate/keypress
+
+**License:** MIT
+
+**Copyright notes:**
+
+- `keypress` was originally authored by **Nathan Rajlich** (tootallnate.net).
+- Copyright (c) 2012 Nathan Rajlich.
+- The module is based on the keypress logic found within the Node.js Core
+  `readline` module.
+
+**License text:**
+
+```
+MIT License
+
+Copyright (c) 2012 Nathan Rajlich
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```

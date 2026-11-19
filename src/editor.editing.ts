@@ -140,7 +140,7 @@ function handleAutoPair(this: CliEditor, openChar: string, closeChar: string): v
     if (this.selectionAnchor) {
         // There is a selection, so we need to wrap it.
         const selection = this.getNormalizedSelection();
-        if (!selection) return; // Should not happen if anchor exists, but good practice
+        if (!selection) return;
 
         const selectedText = this.getSelectedText();
         
@@ -289,8 +289,7 @@ function duplicateLineOrSelection(this: CliEditor): void {
         // Single line duplication
         const line = this.lines[this.cursorY];
         this.lines.splice(this.cursorY + 1, 0, line);
-        this.cursorY++; // Move down to the new line
-        // CursorX stays same? Usually yes.
+        this.cursorY++; // Move down to the new line, keeping the same column.
     }
     
     this.setDirty();

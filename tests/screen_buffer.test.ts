@@ -34,8 +34,6 @@ describe('ScreenBuffer', () => {
         // Frame 2 - same content
         buffer.put(0, 0, 'A', '');
         buffer.flush();
-        // Ideally, if optimized, it writes nothing or very little. 
-        // But ScreenBuffer logic might be simple.
         
         // Change content
         buffer.put(0, 0, 'B', '');

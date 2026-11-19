@@ -44,8 +44,8 @@ export class ScreenBuffer {
 
     public put(x: number, y: number, char: string, style: string = ''): void {
         if (x >= 0 && x < this.cols && y >= 0 && y < this.rows) {
-            // Handle wide characters (simple check) if needed, 
-            // but for now strict 1-char-1-cell per plan.
+            // One character occupies exactly one cell; wide (CJK) glyphs are not
+            // measured and will overflow the cell they are drawn into.
             this.nextBuffer[y][x] = { char, style };
         }
     }
@@ -62,11 +62,8 @@ export class ScreenBuffer {
         let lastY = -1;
         let lastX = -1;
 
-        // Optimization: If force redraw, we clear screen first? 
-        // Or just iterate everything.
-        // Diffing is generally better than clear screen unless everything changed.
-        // If forceRedraw is true, we assume currentBuffer is invalid/empty.
-        
+        // After a resize the current buffer no longer describes the screen, so
+        // the full grid must be repainted.
         if (this.forceRedraw) {
              output += ANSI.CLEAR_SCREEN; // Clear entire screen
              // Reset current buffer to allow diffing to fill everything
@@ -91,28 +88,10 @@ export class ScreenBuffer {
                     
                     // 2. Set Style if needed
                     if (next.style !== lastStyle) {
-                        // Apply style. Note: style can be complex (fg + bg).
-                        // If style is empty, it means RESET.
-                        // Ideally we use ANSI.RESET_COLORS then apply style, 
-                        // or just apply style if it overrides everything.
-                        // To be safe and simple: Reset + Apply
-                        // BUT that's verbose. 
-                        // Let's assume 'style' passed in is the FULL set of codes needed.
-                        // If style is '', we must RESET.
-                        
-                        if (next.style === '') {
-                             output += ANSI.RESET_COLORS;
-                        } else {
-                             // Optimization: if strictly additive? No, just write it.
-                             // But if we switch from INVERT to RED, we might need RESET in between.
-                             // Safest: Always RESET before applying new style unless we are smart.
-                             // Let's rely on the caller passing correct styles or RESET + Style.
-                             
-                             // Better approach for CLI Editor:
-                             // Styles are usually mutually exclusive modes (Selection, Syntax Color).
-                             // We should probably RESET if style changes, THEN apply next.
-                             output += ANSI.RESET_COLORS + next.style;
-                        }
+                        // Each cell in nextBuffer carries its complete style, so
+                        // RESET before applying it. Styles are treated as mutually
+                        // exclusive modes (selection, syntax colour, search).
+                        output += ANSI.RESET_COLORS + next.style;
                         lastStyle = next.style;
                     }
 
@@ -132,9 +111,8 @@ export class ScreenBuffer {
             output += ANSI.RESET_COLORS;
         }
         
-        // Hide cursor during update? Already hidden in setupTerminal, 
-        // but 'render' usually sets the final cursor position.
-        // ScreenBuffer doesn't manage physical cursor position (that's handled after flush).
+        // ScreenBuffer does not position the physical cursor; render() does that
+        // after flush() so the cursor lands on the document cursor.
         
         if (output.length > 0) {
             process.stdout.write(output);

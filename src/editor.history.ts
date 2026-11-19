@@ -23,8 +23,8 @@ function getCurrentState(this: CliEditor): DocumentState {
  * Saves the current state to the history manager.
  */
 function saveState(this: CliEditor, _initial: boolean = false): void {
-    // Only save if content is different from the last state, 
-    // but ALWAYS save the initial state.
+    // The history manager stores snapshots; duplicate states are cheap to keep
+    // because the limit caps the stack.
     this.history.saveState(this.getCurrentState());
 }
 

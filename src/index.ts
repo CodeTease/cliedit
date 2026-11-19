@@ -9,7 +9,7 @@ import { SwapManager } from './editor.swap.js';
  * Reads the file and initializes CliEditor.
  */
 export async function openEditor(filepath: string, options?: EditorOptions): Promise<{ saved: boolean; content: string }> {
-  // 0. Handle Piping (Stdin)
+  // 1. Handle Piping (Stdin)
   let pipedContent = '';
   if (!process.stdin.isTTY) {
       try {
@@ -24,7 +24,6 @@ export async function openEditor(filepath: string, options?: EditorOptions): Pro
           const ttyPath = process.platform === 'win32' ? 'CONIN$' : '/dev/tty';
           const ttyFd = await fs.open(ttyPath, 'r');
           
-          // Let's rely on the fact that we can construct a new ReadStream.
           const { ReadStream } = await import('tty');
           const ttyReadStream = new ReadStream(ttyFd.fd);
           
@@ -39,7 +38,7 @@ export async function openEditor(filepath: string, options?: EditorOptions): Pro
       }
   }
 
-  // Check for swap file (only if filepath provided)
+  // 2. Check for a swap file left behind by a crashed session.
   if (filepath && await SwapManager.check(filepath)) {
       console.log(`\x1b[33mWarning: Swap file detected for ${filepath}. Recovering content...\x1b[0m`);
       await new Promise(r => setTimeout(r, 1500));

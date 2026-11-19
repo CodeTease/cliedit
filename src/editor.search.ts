@@ -118,14 +118,14 @@ function replaceCurrentAndFindNext(this: CliEditor): void {
     this.lines[result.y] = before + this.replaceQuery! + after;
     this.setDirty();
 
-    // Store current position to find the *next* match after this one
+    // Store the replaced position to locate the *next* match after it.
     const replacedResultY = result.y;
     const replacedResultX = result.x;
 
-    // We MUST re-execute search as all indices may have changed
+    // Re-execute: replacing shifts every later index on that line.
     this.executeSearch();
 
-    // Find the next result *after* the one we just replaced
+    // Find the first result that sorts after the replaced one.
     let nextIndex = -1;
     for (let i = 0; i < this.searchResults.length; i++) {
         const res = this.searchResults[i];

@@ -6,6 +6,9 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    // TypeScript 6 defaults `types` to [], which stops @types/node from being
+    // picked up automatically; the Node globals are ambient here by design.
+    "types": ["node"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

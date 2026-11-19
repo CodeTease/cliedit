@@ -18,14 +18,14 @@
   "files": [
     "dist",
     "LICENSE",
-    "README.md",
-    "ACKNOWLEDGEMENTS.md"
+    "README.md"
   ],
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build",
-    "demo": "npm run build && cross-env NODE_ENV=development tsx src/demo.ts",
-    "test": "vitest",
+    "prepublishOnly": "bun run build",
+    "demo": "bun run build && cross-env NODE_ENV=development bun src/demo.ts",
+    "test": "bun test",
+    "typecheck": "bun check",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix"
   },
@@ -40,14 +40,13 @@
   "author": "CodeTease",
   "license": "MIT",
   "devDependencies": {
-    "@eslint/js": "^9",
-    "@types/node": "^22",
-    "cross-env": "^7",
-    "eslint": "^9",
-    "globals": "^17",
-    "tsx": "^4",
-    "typescript": "^5",
-    "typescript-eslint": "^8",
-    "vitest": "^4"
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.6",
+    "cross-env": "^10.1.0",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6",
+    "typescript-eslint": "^8.73.0"
   }
 }

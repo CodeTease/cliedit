@@ -42,8 +42,8 @@ async function runDemo() {
     // Run editor
     const result = await openEditor(demoFile);
 
-    // (FIX GHOST TUI) Add a buffer after the editor resolves
-    // to give the terminal time to transition screens.
+    // Give the terminal a moment to switch back from the alternate screen
+    // before printing, otherwise output can interleave with the TUI teardown.
     await new Promise(res => setTimeout(res, 50));
 
     // Output result

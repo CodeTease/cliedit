@@ -13,9 +13,8 @@ export class SwapManager {
 
     constructor(filepath: string, contentGetter: () => string) {
         this.filepath = filepath;
-        // If filepath is empty (e.g. untitled/piped), we can't really make a relative swap file easily.
-        // We will default to a temp file or current dir if filepath is empty.
-        // For now, let's assume if filepath is provided, we use it.
+        // An empty filepath (untitled buffer or piped input) has no directory to
+        // hold a swap file next to, so fall back to the working directory.
         if (!filepath) {
             this.swapPath = path.resolve('.untitled.swp');
         } else {

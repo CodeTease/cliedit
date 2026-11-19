@@ -118,8 +118,7 @@ describe('Editor Selection', () => {
             // On start line, before start x
             expect(editor.isPositionInSelection(0, 1, range)).toBe(false);
             
-            // On end line, after end x (inclusive check? check logic)
-            // Logic: if (logicalY === range.end.y && logicalX >= range.end.x) return false;
+            // On end line, the end x and everything after it are excluded.
             expect(editor.isPositionInSelection(1, 3, range)).toBe(false);
             expect(editor.isPositionInSelection(1, 4, range)).toBe(false);
             

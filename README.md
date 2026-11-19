@@ -132,10 +132,8 @@ import type {
 } from 'cliedit';
 ```
 
-## Acknowledgements
-
-Please see the [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) file for important copyright information regarding the vendored `keypress` component.
-
 ## License
 
 [MIT](LICENSE)
+
+The [LICENSE](LICENSE) file also contains the copyright notices and license terms for the vendored [`keypress`](https://github.com/TooTallNate/keypress) component.

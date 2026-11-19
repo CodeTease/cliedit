@@ -115,8 +115,8 @@ export class CliEditor {
         this.syntaxWorker = new Worker(workerPath);
         this.syntaxWorker.on('message', this.handleWorkerMessage.bind(this));
     } catch {
-        // Fallback or log error
-        // console.error("Failed to load worker", e);
+        // Highlighting is optional: getLineSyntaxColor() falls back to the
+        // synchronous parser when the worker cannot be started.
     }
   }
 
@@ -124,11 +124,8 @@ export class CliEditor {
       const { lineIndex, colorMap } = msg;
       this.syntaxCache.set(lineIndex, colorMap);
       
-      // Trigger Partial Render?
-      // For simplicity, just render. The screen buffer diffing handles optimization.
-      // But we only need to render IF the line is currently visible?
-      // Checking visibility is optimization.
-      // Let's just render.
+      // A reply can repaint any visible line; the screen buffer diff keeps the
+      // extra render cheap.
       if (!this.isCleanedUp) {
           this.render();
       }
@@ -156,8 +153,9 @@ export class CliEditor {
         this.inputStream.removeAllListeners('keypress');
         process.stdout.removeAllListeners('resize');
         
-        // 2. (FIX GHOST TUI) Write exit sequence and use callback to ensure it's written 
-        // before Node.js fully releases the TTY.
+        // 2. Write the exit sequence and use the write callback so the bytes
+        // reach the terminal before Node.js releases the TTY; otherwise the TUI
+        // can be left on screen ("ghost" TUI).
         // Disable mouse tracking (1000 and 1006)
         process.stdout.write(
             ANSI.CLEAR_SCREEN + ANSI.MOVE_CURSOR_TOP_LEFT + ANSI.SHOW_CURSOR + ANSI.EXIT_ALTERNATE_SCREEN + '\x1b[?1000l' + '\x1b[?1006l', 

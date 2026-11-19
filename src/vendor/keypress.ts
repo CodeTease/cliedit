@@ -20,14 +20,11 @@ export interface KeypressEvent {
 }
 
 /**
- * Polyfill for `EventEmitter.listenerCount()`, for backward compatibility.
+ * The static exists on every supported Node version, but its first overload is
+ * shared with `EventTarget`, so narrow it to the `EventEmitter` form used here.
  */
-let listenerCount = EventEmitter.listenerCount;
-if (!listenerCount) {
-  listenerCount = function (emitter: EventEmitter, event: string | symbol): number {
-    return emitter.listeners(event).length;
-  };
-}
+const listenerCount = (emitter: EventEmitter, event: string | symbol): number =>
+  EventEmitter.listenerCount(emitter, event);
 
 /**
  * Regexes used to parse ansi escape codes.
@@ -78,18 +75,16 @@ export default function keypress(stream: NodeJS.ReadStream): void {
 function isEmittingKeypress(stream: NodeJS.ReadStream): boolean {
   let rtn = !!(stream as any)._keypressDecoder;
   if (!rtn) {
-    // XXX: For older node versions, we want to remove existing
-    // "data" and "newListener" listeners because they won't
-    // include extensions from this module (like "mousepress" which was removed).
+    // Older Node versions may already have "data"/"newListener" listeners
+    // installed by a previous keypress instance; drop them so this instance's
+    // decoder receives the events.
     stream.listeners('data').slice(0).forEach(function (l) {
       if (l.name === 'onData' && /emitKey/.test(l.toString())) {
-        // FIX TS2769: Cast 'l' to a valid listener type
         stream.removeListener('data', l as (...args: any[]) => void);
       }
     });
     stream.listeners('newListener').slice(0).forEach(function (l) {
       if (l.name === 'onNewListener' && /keypress/.test(l.toString())) {
-        // FIX TS2769: Cast 'l' to a valid listener type
         stream.removeListener('newListener', l as (...args: any[]) => void);
       }
     });
@@ -160,15 +155,13 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
     key.meta = true;
     key.shift = /^[A-Z]$/.test(parts[1]);
   
-  // ***** START BUG FIX *****
-  // The original library failed to handle any standard printable
-  // characters (numbers, symbols) that weren't a-z or A-Z.
+  // Upstream keypress leaves single printable characters (digits, symbols)
+  // unhandled because it only maps a-z/A-Z; emit them as key names so the
+  // editor can insert them.
   } else if (s.length === 1 && s >= ' ' && s <= '~') {
-    // Standard printable character (digits, symbols, etc.)
     key.name = s;
-    // We can infer shift status for common symbols
+    // Infer shift status for the symbols that require it.
     key.shift = '!@#$%^&*()_+{}|:"<>?~'.includes(s);
-  // ***** END BUG FIX *****
 
   } else if ((parts = functionKeyCodeRe.exec(s))) {
     // ansi escape sequence
@@ -181,7 +174,7 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
       (parts[4] || '') +
       (parts[6] || '');
       
-    // FIX TS2362: Convert (parts[...]) to number using parseInt
+    // parseInt is required: the regex capture groups are strings.
     const modifier = parseInt(parts[3] || parts[5] || '1', 10) - 1;
 
     // Parse modifier keys
@@ -307,8 +300,8 @@ function emitKey(stream: NodeJS.ReadStream, s: string): void {
         key.name = 'scrolldown';
         key.code = 'scrolldown';
     } 
-    // We can handle click here if needed (b=0 left, b=1 middle, b=2 right)
-    // but for now only scroll is requested.
+    // Only scroll wheel events are surfaced; clicks (b=0 left, 1 middle,
+    // 2 right) are ignored.
   }
 
   // Don't emit key if name is not found

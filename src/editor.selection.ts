@@ -95,7 +95,7 @@ function getSelectedText(this: CliEditor): string {
         } else if (y === range.start.y && range.start.y === range.end.y && startX === endX) {
             // Handle case where selection is zero-width, but on the same line (empty string)
         } else if (y < range.end.y) {
-            // If it's an empty line that is fully included in the selection
+            // Empty lines fully inside a multi-line selection are preserved.
             selectedLines.push('');
         }
     }

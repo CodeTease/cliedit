@@ -37,7 +37,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
     let keyName: string | undefined = undefined;
     let edited = false; 
 
-    // --- 1. Handle the case where key is null/undefined (Printable characters) ---
+    // --- 1. Printable characters (key is null/undefined) ---
     if (!key) {
         if (ch && ch.length === 1 && ch >= ' ' && ch <= '~') {
             if (this.mode === 'search_find' || this.mode === 'search_replace') {
@@ -58,7 +58,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         return; 
     }
     
-    // --- 2. From here, the 'key' object is guaranteed to exist (special keys or Ctrl/Meta) ---
+    // --- 2. Special keys and Ctrl/Meta combinations (key is defined) ---
 
     // 2.1. Map Control sequences (Ctrl+Arrow for selection)
     if (key.ctrl) {
@@ -68,8 +68,7 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
         else if (key.name === 'right') keyName = KEYS.CTRL_ARROW_RIGHT;
         else keyName = key.sequence; 
     } else {
-        // 2.2. Map standard keys (Arrow, Home, End, Enter, Tab)
-        // Check Meta keys first!
+        // 2.2. Map standard keys (Arrow, Home, End, Enter, Tab); Meta is checked first.
         if (key.meta && key.name === 'left') keyName = 'ALT_LEFT';
         else if (key.meta && key.name === 'right') keyName = 'ALT_RIGHT';
         else if (key.meta && key.name === 'up') keyName = KEYS.ALT_UP;
@@ -121,38 +120,13 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
             const scrollAmount = 3;
             this.rowOffset = Math.max(0, this.rowOffset - scrollAmount);
             
-            // Adjust cursor if it falls out of view (below the viewport)
-            // Actually if we scroll UP, the viewport moves UP. The cursor might be BELOW the viewport.
-            // scroll UP means viewing lines ABOVE. Viewport index decreases.
-            // Cursor (if previously in view) might now be >= rowOffset + screenRows.
-            
-            // We need to ensure cursor is within [rowOffset, rowOffset + screenRows - 1]
-            // But verify after setting rowOffset.
+            // Scrolling up moves the viewport up, so a cursor that was visible
+            // can end up below the new bottom edge and must be pulled into view.
             const currentVisualRow = this.findCurrentVisualRowIndex();
             const bottomEdge = this.rowOffset + this.screenRows - 1;
             
-            if (currentVisualRow > bottomEdge) {
-                 // Move cursor to bottom edge
-                 // Need logic to move cursor to visual row 'bottomEdge'
-                 // Use getLogicalFromVisual
-                 const targetPos = this.getLogicalFromVisual(bottomEdge);
-                 this.cursorY = targetPos.logicalY;
-                 // Set to start of that chunk
-                 const contentWidth = Math.max(1, this.screenCols - this.gutterWidth);
-                 this.cursorX = targetPos.visualYOffset * contentWidth;
-            } else if (currentVisualRow < this.rowOffset) {
-                 // Should not happen when scrolling up (moving viewport up), unless cursor was already above?
-                 // If we scroll up, rowOffset decreases. Current row stays same. 
-                 // So current row > new rowOffset.
-                 // It might be > bottomEdge.
-            }
-            // However, to be safe against 'scroll' method resetting it:
-            // The 'scroll' method checks:
-            // if (currentVisualRow < this.rowOffset) -> this.rowOffset = currentVisualRow
-            // if (currentVisualRow >= this.rowOffset + this.screenRows) -> this.rowOffset = ...
-            
-            // So we MUST move cursor inside the new viewport.
-            
+            // scroll() would snap the viewport back to a cursor outside the
+            // viewport, so the cursor has to be moved inside it first.
             if (currentVisualRow > bottomEdge) {
                 const targetPos = this.getLogicalFromVisual(bottomEdge);
                 this.cursorY = targetPos.logicalY;
@@ -162,19 +136,16 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
 
         } else if (keyName === 'SCROLL_DOWN') {
             const scrollAmount = 3;
-            // Need total visual rows to clamp maxOffset.
-            // Calculating total visual rows is O(N).
-            // Let's do a safe scroll? 
-            // Or just allow scrolling until end?
-            // Let's calculate total visual rows for now (performance cost accepted for correct scrolling).
+            // The viewport is clamped against total visual rows (O(N) per scroll
+            // event) so the document cannot be scrolled past its end.
             let totalVisualRows = 0;
             for(let i=0; i<this.lines.length; i++) totalVisualRows += this.getLineVisualHeight(i);
 
             const maxOffset = Math.max(0, totalVisualRows - this.screenRows);
             this.rowOffset = Math.min(maxOffset, this.rowOffset + scrollAmount);
             
-            // Scroll DOWN means viewport index increases.
-            // Cursor might be ABOVE the new viewport (currentVisualRow < rowOffset).
+            // Scrolling down can leave the cursor above the new viewport; move it
+            // to the first visible row.
             const currentVisualRow = this.findCurrentVisualRowIndex();
             
             if (currentVisualRow < this.rowOffset) {
@@ -190,11 +161,11 @@ function handleKeypressEvent(this: CliEditor, ch: string, key: KeypressEvent): v
 
     // 6. Update State and Render
     if (edited) {
-        this.saveState(); // <-- Called only when typing, deleting, etc.
+        this.saveState(); // Only typing/deleting dirties the history.
     }
 
     if (!this.isExiting) {
-        this.render(); // Final render (with visual rows updated if necessary)
+        this.render();
     }
 }
 
@@ -339,15 +310,12 @@ function handleEditKeys(this: CliEditor, key: string): boolean {
         case 'ALT_RIGHT':
             this.moveCursorByWord('right');
             return false;
-        case KEYS.CTRL_M: // Or any key for Bracket Match. Ctrl+M is technically Enter in some terms but if available...
-            // Let's use Ctrl+B (Bracket) if not taken? Ctrl+B is often bold, but here it's CLI.
-            // Or just check if key is match bracket key.
-            // Let's try to map a specific key or use Meta.
-            // For now, let's use Ctrl+B?
+        case KEYS.CTRL_M: // Ctrl+M: jump to the matching bracket.
             this.matchBracket();
             return false;
             
-        // After undo/redo, we MUST recalculate visual rows
+        // Undo/redo replaces the whole document, so visual rows are recomputed
+        // by the render that follows.
         case KEYS.CTRL_Z:
             this.undo();
             return false; 

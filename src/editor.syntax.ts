@@ -13,25 +13,14 @@ function getLineSyntaxColor(this: CliEditor, lineIndex: number, lineContent: str
         return this.syntaxCache.get(lineIndex)!;
     }
 
-    // Request async syntax highlight
-    // But for the FIRST render, we return empty map to not block.
-    // We send message to worker.
-    
-    // However, if we don't have a worker yet (or if worker is disabled), we might want to fallback?
-    // Assuming worker is always available as per plan.
-    
+    // Highlighting runs asynchronously: the first render returns an empty map so
+    // the frame is not blocked, and the worker replies trigger a repaint.
     if (this.syntaxWorker) {
         this.syntaxWorker.postMessage({ lineIndex, content: lineContent });
         
-        // Mark as "pending" in cache to avoid spamming the worker?
-        // Let's use an empty map as pending state.
-        // But if we cache empty map, we won't re-request?
-        // We need a way to know if it's pending.
-        // Let's NOT cache the empty map.
-        // But render() calls this every frame.
-        // If we don't cache, we spam postMessage.
-        // So we cache an empty map, but we need to know it's a "temporary" empty map.
-        // For simplicity: Cache the empty map. When worker replies, it overwrites.
+        // The empty map doubles as a "request in flight" marker so render() does
+        // not re-post the same line every frame. The worker reply overwrites it.
+        // Lines edited since the request are covered by invalidateSyntaxCache().
         const empty = new Map<number, string>();
         this.syntaxCache.set(lineIndex, empty);
         return empty;

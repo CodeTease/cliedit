@@ -20,8 +20,8 @@ function findCurrentVisualRowIndex(this: CliEditor): number {
         visualRowIndex += this.getLineVisualHeight(i);
     }
     
-    // Add visual offset within current line
-    // e.g. if cursorX is 250 and width is 100, we are on the 3rd row (index 2) of this line.
+    // Add the visual offset within the current line: cursorX 250 on a
+    // 100-column line sits on visual row 2 of that line.
     visualRowIndex += Math.floor(this.cursorX / contentWidth);
     
     return visualRowIndex;
@@ -58,10 +58,8 @@ function moveCursorVisually(this: CliEditor, dy: number): void {
     // Prevent moving out of bounds (top)
     if (dy < 0 && currentVisualRow === 0) return;
     
-    // Calculate total visual rows (O(N) - expensive but necessary for bounds check at bottom)
-    // Optimization: If dy > 0, we can check as we go. But for now, let's keep it safe.
-    // Or just let getLogicalFromVisual handle out of bounds.
-    
+    // There is no cheap bounds check at the bottom; getLogicalFromVisual()
+    // clamps to the last line and the position is clamped below.
     const targetVisualRow = Math.max(0, currentVisualRow + dy);
     
     // Determine logical position of target visual row

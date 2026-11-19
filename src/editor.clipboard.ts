@@ -73,7 +73,7 @@ function getClipboard(this: CliEditor): Promise<string> {
 
 /**
  * Cuts the current line and copies it to the clipboard.
- * Falls back to line-based behavior if no selection.
+ * Used as the fallback when there is no selection.
  */
 async function cutLine(this: CliEditor): Promise<void> {
     if (this.lines.length > 1 || (this.lines.length === 1 && this.lines[0] !== '')) {
@@ -119,7 +119,8 @@ async function pasteLine(this: CliEditor): Promise<void> {
 
 /**
  * Cuts the current selection to the clipboard. Returns a promise.
- * Renamed to avoid collision with command handler in editor.keys.ts
+ * Named `cutSelectionAsync` to avoid colliding with the `cutSelection`
+ * command handler defined in editor.keys.ts.
  */
 async function cutSelectionAsync(this: CliEditor): Promise<void> {
     if (!this.selectionAnchor) {
@@ -147,6 +148,6 @@ export const clipboardMethods = {
     getClipboard,
     cutLine,
     pasteLine,
-    cutSelectionAsync, // Renamed
+    cutSelectionAsync,
     pasteSelection,
 };

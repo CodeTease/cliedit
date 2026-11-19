@@ -116,21 +116,16 @@ describe('Editor Navigation', () => {
             // 'W|ord1 Word2'
             editor.cursorX = 0;
             editor.moveCursorByWord('right');
-            // Should jump to start of next word or end of current? 
-            // Logic: while !space, then while space.
-            // 'Word1 ' -> moves to 'W' of Word2?
-            // Let's trace:
-            // i=0 ('W'). !space loop -> i becomes 5 (space after Word1).
-            // space loop -> i becomes 6 ('W' of Word2).
+            // Skips the rest of the current word, then the following spaces,
+            // landing on the first character of the next word.
             expect(editor.cursorX).toBe(6);
         });
         
         it('should move left by word', () => {
              editor.cursorX = 6; // 'W' of Word2
              editor.moveCursorByWord('left');
-             // i=5 (space).
-             // while space -> i=5.
-             // while !space -> i=0.
+             // Skips the preceding spaces, then the rest of the previous word,
+             // landing on its first character.
              expect(editor.cursorX).toBe(0);
         });
     });

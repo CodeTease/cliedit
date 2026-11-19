@@ -38,9 +38,9 @@ function getLineVisualHeight(this: CliEditor, lineIndex: number): number {
 
 /**
  * Maps a global visual row index to its corresponding logical line and offset.
- * Note: This is O(N) where N is the number of logical lines.
- * Optimization: For very large files, this would need a tree structure.
- * * @param visualY The global visual row index (0-based).
+ * This is O(N) in the number of logical lines; a very large file would need a
+ * tree structure to avoid the linear scan.
+ * @param visualY The global visual row index (0-based).
  * @returns Object containing logicalY and the visual offset within that line.
  */
 function getLogicalFromVisual(this: CliEditor, visualY: number): { logicalY: number; visualYOffset: number } {
@@ -68,16 +68,13 @@ function getLogicalFromVisual(this: CliEditor, visualY: number): { logicalY: num
  * The main rendering loop.
  */
 function render(this: CliEditor): void {
-    // 1. Dynamic Gutter Update
-    // We update this every frame to handle cases where lines are added/removed.
-    // This fixes the "Gutter Overflow" issue on large files.
+    // Recalculate the gutter every frame so it grows with the line count.
     this.updateGutterWidth();
 
     this.adjustCursorPosition();
     this.scroll();
 
-    // Clear buffer for next frame logic (conceptually)
-    // Actually ScreenBuffer.clear() fills with spaces, which is what we want for empty areas.
+    // clear() blanks the next buffer; empty cells then erase stale content.
     this.screenBuffer.clear();
     
     // Recalculate content width with the NEW gutter width
@@ -94,7 +91,6 @@ function render(this: CliEditor): void {
 
     // Scrollbar calculations
     const totalLines = this.lines.length;
-    // const startLogicalY = startPos.logicalY; // Unused variable
     const showScrollbar = totalLines > this.screenRows; 
     const thumbHeight = showScrollbar ? Math.max(1, Math.floor((this.screenRows / totalLines) * this.screenRows)) : 0;
     const thumbStart = showScrollbar ? Math.floor((startPos.logicalY / totalLines) * this.screenRows) : 0;
@@ -298,18 +294,15 @@ function renderStatusBarToBuffer(this: CliEditor): void {
 
 
 /**
- * Deprecated string-based status bar render, kept for interface compatibility if needed, 
- * but logic is now in renderStatusBarToBuffer. 
- * We can stub it or redirect it.
+ * Legacy string-based status bar render. renderStatusBarToBuffer() replaced it;
+ * this stub stays because the mixin interface still exposes the method.
  */
 function renderStatusBar(this: CliEditor): string {
-    // This is no longer used by render(), but might be called by legacy code if any?
-    // The Mixin requires it to exist.
     return ''; 
 }
 
 export const renderingMethods = {
-    updateGutterWidth, // Export the new method
+    updateGutterWidth,
     getLineVisualHeight,
     getLogicalFromVisual,
     render,
