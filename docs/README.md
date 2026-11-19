@@ -1,26 +1,38 @@
 # `cliedit` Documentation
 
-Welcome to the official documentation for `cliedit`, a zero-dependency, embeddable TUI text editor for Node.js.
+`cliedit` is a zero-runtime-dependency, embeddable TUI text editor for Node.js. You import
+`openEditor()` from your own CLI tool; the editor takes over the terminal in raw mode until
+the user saves (`Ctrl+S`) or quits (`Ctrl+Q`).
 
 ## Getting Started
 
 - [Installation & Hello World](./getting-started.md)
-- [Basic Usage (openEditor)](./guide/basic-usage.md)
+- [Basic Usage (openEditor, options, crash recovery)](./guide/basic-usage.md)
 - [Piping & Stdin Support](./guide/piping.md)
 - [Keyboard Shortcuts](./guide/shortcuts.md)
 
 ## Architecture (Advanced)
 
-For contributors and those interested in how `cliedit` works under the hood:
+For contributors and anyone extending the editor:
 
-- [Overview (Mixin Pattern & State)](./architecture/overview.md)
-- [Rendering System (Double Buffering & Virtual Scrolling)](./architecture/rendering.md)
-- [Syntax Highlighting (Worker Threads)](./architecture/syntax-highlight.md)
+- [Overview (module map, mixin pattern, state, undo/redo)](./architecture/overview.md)
+- [Rendering (double buffering, visual-row viewport)](./architecture/rendering.md)
+- [Syntax Highlighting (brackets, strings, worker thread)](./architecture/syntax-highlight.md)
 
 ## API Reference
 
-- [Interfaces & Types](./api/interfaces.md)
+- [Interfaces & Types (`openEditor`, `EditorOptions`, `DocumentState`, `EditorMode`, `NormalizedRange`)](./api/interfaces.md)
 
 ## Contributing
 
-- [Development Workflow](./contributing.md)
+- [Development Workflow (Bun, build, tests, lint)](./contributing.md)
+
+## Repository Entry Points
+
+| What | Where |
+| --- | --- |
+| Package entry | `src/index.ts` — `openEditor()` |
+| Editor class | `src/editor.ts` — `CliEditor` |
+| Mixins | `src/editor.<area>.ts` |
+| Rendering | `src/screen_buffer.ts`, `src/editor.rendering.ts` |
+| Tests | `tests/*.test.ts` (Bun's runner) |

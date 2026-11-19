@@ -140,9 +140,10 @@ These three ideas prevent most bugs:
   with `TS2591`. A side effect of loading the real Node typings is that
   `EventEmitter.listenerCount` is overloaded for `EventTarget`, so helpers that
   take the static as a value must narrow it (see `src/vendor/keypress.ts`).
-- **`vitest` is not a dependency.** `vitest.config.ts` exists and tests import
-  from `vitest`, but only Bun's built-in shim satisfies those imports. Do not
-  add `vitest` to `package.json` without also changing the `test` script.
+- **`vitest` is not a dependency.** Tests import from `vitest`, but only Bun's
+  built-in shim satisfies those imports; there is no `vitest.config.ts` and no
+  `vitest` package. Do not add `vitest` to `package.json` without also changing
+  the `test` script.
 - **`tsconfig.json` only includes `src/**/*.ts`** and excludes `src/demo.ts`, so
   `tests/` and the demo are not typechecked by `tsc`. `eslint` likewise covers
   `src/` only and skips `src/vendor/`.

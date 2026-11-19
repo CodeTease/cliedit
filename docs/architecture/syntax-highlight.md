@@ -1,32 +1,70 @@
 # Syntax Highlighting Architecture
 
-Syntax highlighting in `cliedit` is designed to be lightweight and non-blocking, ensuring that typing and navigation remain responsive even when parsing complex files.
+Highlighting is deliberately minimal and never blocks a frame. It colours **brackets** and
+**quoted strings** only.
 
-## Worker Threads
+## What Is Highlighted
 
-Parsing code for syntax highlighting can be computationally expensive, especially for large files or complex grammars. Running this on the main JavaScript thread (which also handles input and rendering) would cause noticeable lag.
+`parseLineSyntax()` in `src/syntax.common.ts` is a single-pass state machine over the
+characters of one line:
 
-To solve this, `cliedit` offloads syntax parsing to a **Worker Thread** (`src/syntax.worker.ts`).
+| Input | Style |
+| --- | --- |
+| `(`, `)`, `[`, `]`, `{`, `}` outside a string | `ANSI.YELLOW` |
+| Characters inside `'...'` or `"..."`, including the quotes | `ANSI.GREEN` |
 
-### The Workflow
+A quote is escaped when preceded by an odd number of backslashes (`\"` does not close the
+string, `\\"` does). State does **not** carry across lines: a multi-line string is parsed
+as if each line started outside a string.
 
-1.  **Initialization:** When the editor starts, it spawns a Node.js `Worker`.
-2.  **Dispatch:** Whenever a line changes or needs to be highlighted, the main thread sends a message to the worker containing:
-    -   The line index (`lineIndex`).
-    -   The line content (`content`).
-3.  **Processing (Background):** The worker receives the message and runs the parsing logic (`parseLineSyntax` in `src/syntax.common.ts`).
-    -   This function identifies tokens (keywords, strings, comments) and assigns colors.
-4.  **Result:** The worker sends back a `Map<number, string>` (mapping column index to ANSI color code).
-5.  **Update:** The main thread receives the map, updates its `syntaxCache`, and triggers a partial re-render if the line is currently visible.
+There are no keyword, comment, or number rules, despite what a generic "syntax
+highlighting" label suggests. That is intentional: the scanner is a pure function with no
+configuration, which keeps it cheap enough to run per visible line on every frame.
 
-## Parsing Logic ("Poor Man's Highlighting")
+## Worker Thread
 
-The current implementation uses a simple, regex-based tokenizer designed for speed and simplicity rather than full semantic analysis.
+The parse itself is trivial, but the architecture keeps it off the main thread so
+highlighting cost never lands inside a keypress:
 
-It supports:
--   **Keywords:** Common language keywords (e.g., `function`, `class`, `if`, `return`).
--   **Strings:** Single (`'`) and double (`"`) quoted strings.
--   **Comments:** Single-line comments (`//`).
--   **Numbers:** Integers and floats.
+1. **Initialization.** The `CliEditor` constructor creates a `Worker` from
+   `join(__dirname, 'syntax.worker.js')`, i.e. a sibling of `dist/editor.js`. If worker
+   creation throws, `syntaxWorker` stays `null` and highlighting falls back to the
+   synchronous path. Nothing else changes.
+2. **Dispatch.** `getLineSyntaxColor(lineIndex, lineContent)` (`src/editor.syntax.ts`)
+   checks `syntaxCache`; on a miss it posts `{ lineIndex, content }` and returns an
+   **empty** map immediately.
+3. **Processing.** `src/syntax.worker.ts` calls `parseLineSyntax()` and posts back
+   `{ lineIndex, colorMap }`.
+4. **Cache.** `handleWorkerMessage()` in `src/editor.ts` stores the map in `syntaxCache`
+   and calls `render()`. The screen-buffer diff makes the extra repaint cheap.
 
-This approach is "good enough" for quick edits in a terminal without the overhead of a full language server or TextMate grammar engine.
+### The In-Flight Marker
+
+Because the first call returns an empty map, that empty map is cached under the line index.
+`render()` therefore stops re-posting the same line on every frame — a cached map means
+"already requested". The worker reply overwrites it.
+
+The consequence to remember: **an empty cached map is indistinguishable from a line with
+nothing to highlight.** Lines edited since their request are handled by
+`invalidateSyntaxCache()`, which clears the whole cache (not one entry) and is called from
+`insertContentAtCursor()`, `insertCharacter()`, `insertNewLine()`, `deleteBackward()`,
+`deleteForward()`, indent/outdent, and undo/redo.
+
+Because the cache is keyed by line index and only cleared wholesale, any structural edit
+correctly repaints, at the cost of re-parsing every visible line.
+
+## Fallback Path
+
+When `syntaxWorker` is `null` — tests, or an environment where the worker cannot start —
+`getLineSyntaxColor()` runs `parseLineSyntax()` inline and caches the result. Behaviour is
+identical apart from where the parse happens.
+
+## Practical Notes
+
+- **The worker is loaded by path.** It must keep compiling next to `editor.js`; if the build
+  layout changes, worker construction fails silently and highlighting degrades to the
+  synchronous path.
+- **One line per message, no batching.** Scrolling into a screenful of new lines posts one
+  message per line, each answered by its own `render()`.
+- **Wide characters are not accounted for.** Column indices in the colour map are UTF-16
+  offsets, which line up with `ScreenBuffer`'s one-code-unit-per-cell assumption.
